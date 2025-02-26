@@ -1,6 +1,8 @@
 # data
 contract_data
 download_data
+*.zip
+*.csv
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
