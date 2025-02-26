@@ -1,6 +1,5 @@
 # data
-contract_data
-download_data
+.DS_Store
 *.zip
 *.csv
 

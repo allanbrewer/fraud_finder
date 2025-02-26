@@ -1,4 +1,3 @@
-import zipfile
 import os
 import pandas as pd
 from datetime import datetime
@@ -46,26 +45,12 @@ def setup_keywords():
     return pattern
 
 
-def process_zip_file(zip_path, filtered_dir, flagged_dir, pattern, today_date):
-    """Process a single zip file and return paths to filtered and flagged files"""
-    zip_file = os.path.basename(zip_path)
-    logging.info(f"Processing {zip_file}...")
-
-    # Create extract directory
-    extract_dir = os.path.join(os.path.dirname(zip_path), f"extracted_{zip_file[:-4]}")
+def process_csv_file(csv_path, filtered_dir, flagged_dir, pattern, today_date):
+    """Process a single CSV file and return paths to filtered and flagged files"""
+    csv_file = os.path.basename(csv_path)
+    logging.info(f"Processing {csv_file}...")
 
     try:
-        # Unzip
-        with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            zip_ref.extractall(extract_dir)
-            csv_files = [f for f in os.listdir(extract_dir) if f.endswith(".csv")]
-            if not csv_files:
-                logging.warning(f"No CSV files found in {zip_file}")
-                return None, None
-
-            csv_file = csv_files[0]
-            csv_path = os.path.join(extract_dir, csv_file)
-
         # Load and filter
         df = pd.read_csv(csv_path, low_memory=False)
 
@@ -85,11 +70,11 @@ def process_zip_file(zip_path, filtered_dir, flagged_dir, pattern, today_date):
 
         if not flagged_df.empty:
             relevant_columns = [
-                "award_id",
-                "total_obligation",
-                "description",
-                "awarding_agency_name",
-                "period_of_performance_current_end_date",
+                "award_id_piid",  # Award ID
+                "total_dollars_obligated",  # Total amount
+                "prime_award_base_transaction_description",  # Description
+                "awarding_agency_name",  # Agency
+                "period_of_performance_current_end_date",  # End date
             ]
             flagged_df = flagged_df[relevant_columns]
             logging.info(f"  Flagged rows: {len(flagged_df)}")
@@ -97,23 +82,18 @@ def process_zip_file(zip_path, filtered_dir, flagged_dir, pattern, today_date):
             logging.info("  No flagged rows found")
 
         # Save filtered and flagged files
-        filtered_path = os.path.join(filtered_dir, f"filtered_{zip_file[:-4]}.csv")
+        file_base = os.path.splitext(csv_file)[0]
+        filtered_path = os.path.join(filtered_dir, f"filtered_{file_base}.csv")
         active_df.to_csv(filtered_path, index=False)
 
-        flagged_path = os.path.join(flagged_dir, f"flagged_{zip_file[:-4]}.csv")
+        flagged_path = os.path.join(flagged_dir, f"flagged_{file_base}.csv")
         flagged_df.to_csv(flagged_path, index=False)
 
         return filtered_path, flagged_path
 
     except Exception as e:
-        logging.error(f"Error processing {zip_file}: {str(e)}")
+        logging.error(f"Error processing {csv_file}: {str(e)}")
         return None, None
-    finally:
-        # Clean up extracted folder to save space
-        if os.path.exists(extract_dir):
-            for f in os.listdir(extract_dir):
-                os.remove(os.path.join(extract_dir, f))
-            os.rmdir(extract_dir)
 
 
 def combine_csv_files(file_paths, output_file, file_type):
@@ -141,12 +121,12 @@ def combine_csv_files(file_paths, output_file, file_type):
 
 
 def main(
-    zip_dir="contract_data",
+    csv_dir="contract_data",
     filtered_dir="filtered_contracts",
     flagged_dir="flagged_contracts",
     output_prefix="",
 ):
-    """Main function to process all zip files and create master datasets"""
+    """Main function to process all CSV files and create master datasets"""
     # Create output directories
     os.makedirs(filtered_dir, exist_ok=True)
     os.makedirs(flagged_dir, exist_ok=True)
@@ -159,18 +139,18 @@ def main(
     filtered_files = []
     flagged_files = []
 
-    # Process each zip file
-    zip_files = [f for f in os.listdir(zip_dir) if f.endswith(".zip")]
-    if not zip_files:
-        logging.warning(f"No zip files found in {zip_dir}")
+    # Process each CSV file
+    csv_files = [f for f in os.listdir(csv_dir) if f.endswith(".csv")]
+    if not csv_files:
+        logging.warning(f"No CSV files found in {csv_dir}")
         return
 
-    logging.info(f"Found {len(zip_files)} zip files to process")
+    logging.info(f"Found {len(csv_files)} CSV files to process")
 
-    for zip_file in zip_files:
-        zip_path = os.path.join(zip_dir, zip_file)
-        filtered_path, flagged_path = process_zip_file(
-            zip_path, filtered_dir, flagged_dir, pattern, today_date
+    for csv_file in csv_files:
+        csv_path = os.path.join(csv_dir, csv_file)
+        filtered_path, flagged_path = process_csv_file(
+            csv_path, filtered_dir, flagged_dir, pattern, today_date
         )
 
         if filtered_path:
@@ -197,9 +177,9 @@ if __name__ == "__main__":
         description="Transform and filter contract data from USA Spending API"
     )
     parser.add_argument(
-        "--zip-dir",
+        "--csv-dir",
         default="contract_data",
-        help="Directory containing zip files (default: contract_data)",
+        help="Directory containing CSV files (default: contract_data)",
     )
     parser.add_argument(
         "--filtered-dir",
@@ -217,4 +197,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(args.zip_dir, args.filtered_dir, args.flagged_dir, args.prefix)
+    main(args.csv_dir, args.filtered_dir, args.flagged_dir, args.prefix)
