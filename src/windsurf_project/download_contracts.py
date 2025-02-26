@@ -1,10 +1,11 @@
 import requests
-from datetime import datetime, UTC
+from datetime import datetime, UTC, timedelta
 import os
 import json
 import time
 import argparse
 import logging
+from dateutil.relativedelta import relativedelta
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -181,13 +182,48 @@ def check_and_download_missing(
     return missing_files
 
 
-def main(department):
+def create_date_ranges(start_date_str, end_date_str, interval_months=3):
+    """Create date ranges with specified interval in months"""
+    # Convert string dates to datetime objects
+    start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
+    end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
 
-    date_ranges = [
-        ("2024-01-01", "2024-06-30"),
-        ("2024-07-01", "2024-12-31"),
-        ("2025-01-01", datetime.now(tz=UTC).strftime("%Y-%m-%d")),
-    ]
+    date_ranges = []
+    current_start = start_date
+
+    while current_start < end_date:
+        # Simply add interval_months and subtract 1 day
+        current_end = (
+            current_start + relativedelta(months=interval_months) - timedelta(days=1)
+        )
+
+        # Ensure we don't go beyond the end_date
+        if current_end > end_date:
+            current_end = end_date
+
+        # Add the date range as strings
+        date_ranges.append(
+            (current_start.strftime("%Y-%m-%d"), current_end.strftime("%Y-%m-%d"))
+        )
+
+        # Move to the next interval
+        current_start = current_end + timedelta(days=1)
+
+    return date_ranges
+
+
+def main(department, start_date=None):
+    # Set end date to today in UTC
+    end_date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+
+    # Set default start date if not provided
+    if start_date is None:
+        start_date = "2024-01-01"  # Default to Jan 1, 2024
+
+    # Create date ranges in 3-month intervals
+    date_ranges = create_date_ranges(start_date, end_date, interval_months=3)
+
+    logging.info(f"Processing date ranges: {date_ranges}")
 
     # Step 1: Fire off all requests
     file_urls = {}
@@ -211,7 +247,7 @@ def main(department):
             )
 
     # Step 3: Cleanup - only try to download files that weren't successfully downloaded
-    if len(successful_downloads) < len(departments) * len(date_ranges):
+    if len(successful_downloads) < len(date_ranges):
         logging.info("\nChecking for missing downloads...")
         still_missing = check_and_download_missing(file_urls, successful_downloads)
         if still_missing:
@@ -223,12 +259,16 @@ def main(department):
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(
         description="Download contract data from USA Spending API"
     )
     parser.add_argument("--department", required=True, help="Department to download")
+    parser.add_argument(
+        "--start-date",
+        default=None,
+        help="Start date in YYYY-MM-DD format (default: 2022-01-01)",
+    )
 
     args = parser.parse_args()
 
-    main(args.department)
+    main(args.department, args.start_date)
