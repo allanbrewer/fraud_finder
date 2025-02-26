@@ -3,6 +3,7 @@ from datetime import datetime, UTC
 import os
 import json
 import time
+import argparse
 import logging
 
 # Configure logging
@@ -180,13 +181,8 @@ def check_and_download_missing(
     return missing_files
 
 
-def main():
-    departments = [
-        "General Services Administration",
-        "Social Security Administration",
-        "Department of the Treasury",
-        "Department of Defense",
-    ]
+def main(department):
+
     date_ranges = [
         ("2024-01-01", "2024-06-30"),
         ("2024-07-01", "2024-12-31"),
@@ -196,11 +192,10 @@ def main():
     # Step 1: Fire off all requests
     file_urls = {}
     logging.info("Initiating all download requests...")
-    for department in departments:
-        for start_date, end_date in date_ranges:
-            file_url = request_download(start_date, end_date, department)
-            file_urls[(department, start_date, end_date)] = file_url
-            time.sleep(3)
+    for start_date, end_date in date_ranges:
+        file_url = request_download(start_date, end_date, department)
+        file_urls[(department, start_date, end_date)] = file_url
+        time.sleep(3)
 
     # Step 2: Fetch the files
     successful_downloads = []
@@ -228,4 +223,12 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+
+    parser = argparse.ArgumentParser(
+        description="Download contract data from USA Spending API"
+    )
+    parser.add_argument("--department", required=True, help="Department to download")
+
+    args = parser.parse_args()
+
+    main(args.department)
