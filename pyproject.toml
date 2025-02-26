@@ -1,0 +1,23 @@
+[project]
+name = "windsurf-project"
+version = "0.1.0"
+description = "Service to download and analyze active contracts from USAspending.gov"
+authors = [
+    {name = "Allan Brewer", email = "allan.brewer@yahoo.com"}
+]
+readme = "README.md"
+requires-python = "^3.11"
+dependencies = [
+    "requests (>=2.32.3,<3.0.0)",
+    "pandas (>=2.2.3,<3.0.0)"
+]
+
+[tool.poetry]
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.1.1"
+flake8 = "^7.0.0"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
