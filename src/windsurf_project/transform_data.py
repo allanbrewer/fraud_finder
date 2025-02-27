@@ -46,8 +46,8 @@ def setup_keywords():
     return pattern
 
 
-def process_csv_file(csv_path, flagged_dir, pattern, today_date, output_prefix):
-    """Process a single CSV file and return paths to filtered and flagged files"""
+def process_csv_file(csv_path, temp_dir, pattern, today_date, output_prefix):
+    """Process a single CSV file and return paths to temp files"""
     csv_file = os.path.basename(csv_path)
     logging.info(f"Processing {csv_file}...")
 
@@ -76,21 +76,19 @@ def process_csv_file(csv_path, flagged_dir, pattern, today_date, output_prefix):
             logging.info("  No active rows found")
 
         # Filter active contracts with matching keywords in description
-        flagged_df = active_df[
+        temp_df = active_df[
             active_df["prime_award_base_transaction_description"]
             .fillna("")
             .str.contains(pattern, na=False)
         ]
-        logging.info(f"  Flagged rows: {len(flagged_df)}")
+        logging.info(f"  Flagged rows: {len(temp_df)}")
 
-        # Save flagged files
+        # Save temp files
         file_base = os.path.splitext(csv_file)[0]
-        flagged_path = os.path.join(
-            flagged_dir, f"{output_prefix}flagged_{file_base}.csv"
-        )
-        flagged_df.to_csv(flagged_path, index=False)
+        temp_path = os.path.join(temp_dir, f"{output_prefix}temp_{file_base}.csv")
+        temp_df.to_csv(temp_path, index=False)
 
-        return flagged_path
+        return temp_path
 
     except Exception as e:
         logging.error(f"Error processing {csv_file}: {str(e)}")
@@ -141,19 +139,19 @@ def combine_csv_files(file_paths, output_file, file_type):
 
 def main(
     csv_dir="contract_data",
-    flagged_dir="flagged_contracts",
     output_prefix="",
 ):
     """Main function to process all CSV files and create master datasets"""
     # Create output directories
-    os.makedirs(flagged_dir, exist_ok=True)
+    temp_dir = "temp_contracts"
+    os.makedirs(temp_dir, exist_ok=True)
 
     # Setup
     pattern = setup_keywords()
     today_date = datetime.now().strftime("%Y-%m-%d")
 
     # Lists to hold filtered file paths
-    flagged_files = []
+    temp_files = []
 
     # Process each CSV file
     csv_files = [f for f in os.listdir(csv_dir) if f.endswith(".csv")]
@@ -169,23 +167,23 @@ def main(
 
     for csv_file in csv_files:
         csv_path = os.path.join(csv_dir, csv_file)
-        flagged_path = process_csv_file(
-            csv_path, flagged_dir, pattern, today_date, output_prefix
+        temp_path = process_csv_file(
+            csv_path, temp_dir, pattern, today_date, output_prefix
         )
 
-        if flagged_path:
-            flagged_files.append(flagged_path)
+        if temp_path:
+            temp_files.append(temp_path)
 
     # Save the combined master file in the same directory as the input CSVs
     master_file_path = os.path.join(
         csv_dir, f"{output_prefix}flagged_contracts_master.csv"
     )
-    success = combine_csv_files(flagged_files, master_file_path, "flagged")
+    success = combine_csv_files(temp_files, master_file_path, "flagged")
 
     # Delete temporary files after successful combination
-    if success and flagged_files:
+    if success and temp_files:
         logging.info("Cleaning up temporary files...")
-        for temp_file in flagged_files:
+        for temp_file in temp_files:
             try:
                 if os.path.exists(temp_file):
                     os.remove(temp_file)
@@ -195,13 +193,13 @@ def main(
                     f"Failed to delete temporary file {temp_file}: {str(e)}"
                 )
 
-        # Try to remove the flagged directory if it's empty
+        # Try to remove the temp directory if it's empty
         try:
-            if os.path.exists(flagged_dir) and not os.listdir(flagged_dir):
-                os.rmdir(flagged_dir)
-                logging.info(f"Removed empty directory: {flagged_dir}")
+            if os.path.exists(temp_dir) and not os.listdir(temp_dir):
+                os.rmdir(temp_dir)
+                logging.info(f"Removed empty directory: {temp_dir}")
         except Exception as e:
-            logging.warning(f"Failed to remove directory {flagged_dir}: {str(e)}")
+            logging.warning(f"Failed to remove directory {temp_dir}: {str(e)}")
 
     logging.info("Processing complete!")
 
@@ -216,14 +214,9 @@ if __name__ == "__main__":
         help="Directory containing CSV files (default: contract_data)",
     )
     parser.add_argument(
-        "--flagged-dir",
-        default="flagged_contracts",
-        help="Directory for flagged output files (default: flagged_contracts)",
-    )
-    parser.add_argument(
         "--prefix", default="", help="Prefix for output master files (default: none)"
     )
 
     args = parser.parse_args()
 
-    main(args.csv_dir, args.flagged_dir, args.prefix)
+    main(args.csv_dir, args.prefix)

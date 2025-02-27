@@ -202,9 +202,10 @@ def create_date_ranges(start_date_str, end_date_str, interval_months=3):
     return date_ranges
 
 
-def main(department, start_date=None):
+def main(department, start_date=None, end_date=None):
     # Set end date to today in UTC
-    end_date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+    if end_date is None:
+        end_date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
 
     # Set default start date if not provided
     if start_date is None:
@@ -258,7 +259,12 @@ if __name__ == "__main__":
         default=None,
         help="Start date in YYYY-MM-DD format (default: 2022-01-01)",
     )
+    parser.add_argument(
+        "--end-date",
+        default=None,
+        help="End date in YYYY-MM-DD format (default: today)",
+    )
 
     args = parser.parse_args()
 
-    main(args.department, args.start_date)
+    main(args.department, args.start_date, args.end_date)
