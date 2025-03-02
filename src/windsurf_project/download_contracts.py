@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO)
 BASE_URL = "https://api.usaspending.gov/api/v2/bulk_download/awards/"
 
 
-def create_post_data(start_date: str, end_date: str, department: str):
+def create_post_data(start_date: str, end_date: str, department: str, sub_type: str):
     return {
         "filters": {
             "prime_award_types": [
@@ -31,6 +31,7 @@ def create_post_data(start_date: str, end_date: str, department: str):
                 "IDV_D",
                 "IDV_E",
             ],
+            "sub_award_types": [sub_type],
             "date_type": "action_date",
             "date_range": {"start_date": start_date, "end_date": end_date},
             "def_codes": [],
@@ -41,9 +42,9 @@ def create_post_data(start_date: str, end_date: str, department: str):
     }
 
 
-def request_download(start_date: str, end_date: str, department: str):
+def request_download(start_date: str, end_date: str, department: str, sub_type: str):
     try:
-        payload = create_post_data(start_date, end_date, department)
+        payload = create_post_data(start_date, end_date, department, sub_type)
         logging.info(
             f"Requesting {department} ({start_date} to {end_date}): {json.dumps(payload)}"
         )
@@ -202,7 +203,7 @@ def create_date_ranges(start_date_str, end_date_str, interval_months=3):
     return date_ranges
 
 
-def main(department, start_date=None, end_date=None):
+def main(department, start_date=None, end_date=None, sub_type="procurement"):
     # Set end date to today in UTC
     if end_date is None:
         end_date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
@@ -220,7 +221,7 @@ def main(department, start_date=None, end_date=None):
     file_urls = {}
     logging.info("Initiating all download requests...")
     for start_date, end_date in date_ranges:
-        file_url = request_download(start_date, end_date, department)
+        file_url = request_download(start_date, end_date, department, sub_type)
         file_urls[(department, start_date, end_date)] = file_url
         time.sleep(3)
 
@@ -264,7 +265,12 @@ if __name__ == "__main__":
         default=None,
         help="End date in YYYY-MM-DD format (default: today)",
     )
+    parser.add_argument(
+        "--sub-type",
+        default="procurement",
+        help="Sub-type of contract data to download (default: procurement)",
+    )
 
     args = parser.parse_args()
 
-    main(args.department, args.start_date, args.end_date)
+    main(args.department, args.start_date, args.end_date, args.sub_type)
