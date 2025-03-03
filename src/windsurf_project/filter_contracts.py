@@ -127,6 +127,40 @@ def filter_by_amount_and_keywords(file_path, min_amount, pattern, output_dir):
             f"  Filtered by keywords: {amount_filtered_count} -> {keyword_filtered_count}"
         )
 
+        # Check for and handle duplicate IDs within this file
+        id_columns = ["award_id_piid", "award_id_fain"]
+        id_col = None
+
+        # Find the ID column
+        for col in id_columns:
+            if col in keyword_filtered.columns:
+                id_col = col
+                break
+
+        if id_col:
+            # Count duplicates before deduplication
+            duplicate_count = (
+                keyword_filtered_count - keyword_filtered[id_col].nunique()
+            )
+
+            if duplicate_count > 0:
+                logging.info(f"  Found {duplicate_count} duplicate IDs in {filename}")
+
+                # Sort by amount (descending) and keep first occurrence of each ID
+                keyword_filtered = keyword_filtered.sort_values(
+                    by=amount_col, ascending=False
+                )
+                keyword_filtered = keyword_filtered.drop_duplicates(
+                    subset=[id_col], keep="first"
+                )
+
+                logging.info(
+                    f"  Removed {duplicate_count} duplicate IDs, keeping highest value contracts"
+                )
+                keyword_filtered_count = len(keyword_filtered)
+            else:
+                logging.info(f"  No duplicate IDs found in {filename}")
+
         # Save filtered file
         output_filename = f"filtered_{filename}"
         output_path = os.path.join(output_dir, output_filename)
@@ -138,6 +172,101 @@ def filter_by_amount_and_keywords(file_path, min_amount, pattern, output_dir):
     except Exception as e:
         logging.error(f"Error processing {file_path}: {str(e)}")
         return None
+
+
+def combine_filtered_files(filtered_files, output_dir):
+    """
+    Combine all filtered files into a single master file
+
+    Args:
+        filtered_files: List of filtered file paths
+        output_dir: Directory to save combined file
+
+    Returns:
+        Path to combined file or None if no files
+    """
+    if not filtered_files:
+        return None
+
+    # Read all filtered files
+    dfs = []
+    for file_path in filtered_files:
+        try:
+            df = pd.read_csv(file_path)
+            dfs.append(df)
+        except Exception as e:
+            logging.error(f"Error reading {file_path}: {str(e)}")
+
+    if not dfs:
+        return None
+
+    # Combine all dataframes
+    combined_df = pd.concat(dfs, ignore_index=True)
+
+    if combined_df.empty:
+        return None
+
+    # Check for and handle duplicate IDs
+    id_columns = ["award_id_piid", "award_id_fain"]
+    id_col = None
+
+    # Find the ID column
+    for col in id_columns:
+        if col in combined_df.columns:
+            id_col = col
+            break
+
+    if id_col:
+        # Count duplicates before deduplication
+        total_rows = len(combined_df)
+        duplicate_count = total_rows - combined_df[id_col].nunique()
+
+        if duplicate_count > 0:
+            logging.info(f"Found {duplicate_count} duplicate IDs in combined data")
+
+            # For each duplicate ID, keep the row with the highest amount
+            amount_columns = [
+                "current_total_value_of_award",
+                "total_dollars_obligated",
+                "total_obligated_amount",
+            ]
+
+            amount_col = None
+            for col in amount_columns:
+                if col in combined_df.columns:
+                    amount_col = col
+                    break
+
+            if amount_col:
+                # Sort by amount (descending) and keep first occurrence of each ID
+                combined_df = combined_df.sort_values(by=amount_col, ascending=False)
+                combined_df = combined_df.drop_duplicates(subset=[id_col], keep="first")
+
+                logging.info(
+                    f"Removed {duplicate_count} duplicate IDs, keeping highest value contracts"
+                )
+            else:
+                # If no amount column, just keep first occurrence
+                combined_df = combined_df.drop_duplicates(subset=[id_col], keep="first")
+                logging.info(
+                    f"Removed {duplicate_count} duplicate IDs (no amount column found)"
+                )
+        else:
+            logging.info("No duplicate IDs found in combined data")
+    else:
+        logging.warning(
+            "No ID column found in combined data, unable to check for duplicates"
+        )
+
+    # Save combined file
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    combined_path = os.path.join(output_dir, f"all_filtered_contracts_{timestamp}.csv")
+    combined_df.to_csv(combined_path, index=False)
+
+    logging.info(
+        f"Combined {len(combined_df)} rows from {len(dfs)} files to {combined_path}"
+    )
+    return combined_path
 
 
 def process_all_files(input_dir, output_dir, min_amount):
@@ -198,49 +327,6 @@ def process_all_files(input_dir, output_dir, min_amount):
         logging.info(f"Summary saved to {summary_path}")
 
     return filtered_files
-
-
-def combine_filtered_files(filtered_files, output_dir):
-    """
-    Combine all filtered files into a single master file
-
-    Args:
-        filtered_files: List of filtered file paths
-        output_dir: Directory to save combined file
-
-    Returns:
-        Path to combined file or None if no files
-    """
-    if not filtered_files:
-        return None
-
-    # Read all filtered files
-    dfs = []
-    for file_path in filtered_files:
-        try:
-            df = pd.read_csv(file_path)
-            dfs.append(df)
-        except Exception as e:
-            logging.error(f"Error reading {file_path}: {str(e)}")
-
-    if not dfs:
-        return None
-
-    # Combine all dataframes
-    combined_df = pd.concat(dfs, ignore_index=True)
-
-    if combined_df.empty:
-        return None
-
-    # Save combined file
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    combined_path = os.path.join(output_dir, f"all_filtered_contracts_{timestamp}.csv")
-    combined_df.to_csv(combined_path, index=False)
-
-    logging.info(
-        f"Combined {len(combined_df)} rows from {len(dfs)} files to {combined_path}"
-    )
-    return combined_path
 
 
 def main(
