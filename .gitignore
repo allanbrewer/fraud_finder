@@ -1,4 +1,7 @@
 # data
+processed_data/
+contract_data/
+filtered_data/
 .DS_Store
 *.zip
 *.csv
