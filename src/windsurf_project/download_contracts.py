@@ -1,37 +1,51 @@
 import requests
 from datetime import datetime, UTC, timedelta
+from dateutil.relativedelta import relativedelta
 import os
 import json
 import time
 import argparse
 import logging
-from dateutil.relativedelta import relativedelta
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
-# API endpoint for USASpending.gov bulk downloads
-BASE_URL = "https://api.usaspending.gov/api/v2/bulk_download/awards/"
 
+def request_download(
+    start_date: str, end_date: str, department: str, sub_award_type: str = "procurement"
+):
+    """Request a bulk download of contract data from USAspending API"""
+    url = "https://api.usaspending.gov/api/v2/bulk_download/awards/"
 
-def create_post_data(start_date: str, end_date: str, department: str, sub_type: str):
-    return {
+    # Define award types based on the sub_award_type parameter
+    award_types = []
+    if sub_award_type == "procurement":
+        award_types = [
+            "A",
+            "B",
+            "C",
+            "D",
+            "IDV_A",
+            "IDV_B",
+            "IDV_B_A",
+            "IDV_B_B",
+            "IDV_B_C",
+            "IDV_C",
+            "IDV_D",
+            "IDV_E",
+        ]
+    elif sub_award_type == "grant":
+        award_types = [
+            "02",
+            "03",
+            "04",
+            "05",
+            "06",
+        ]  # Grant types
+
+    payload = {
         "filters": {
-            "prime_award_types": [
-                "A",
-                "B",
-                "C",
-                "D",
-                "IDV_A",
-                "IDV_B",
-                "IDV_B_A",
-                "IDV_B_B",
-                "IDV_B_C",
-                "IDV_C",
-                "IDV_D",
-                "IDV_E",
-            ],
-            "sub_award_types": [sub_type],
+            "prime_award_types": award_types,
             "date_type": "action_date",
             "date_range": {"start_date": start_date, "end_date": end_date},
             "def_codes": [],
@@ -41,134 +55,106 @@ def create_post_data(start_date: str, end_date: str, department: str, sub_type: 
         "file_format": "csv",
     }
 
-
-def request_download(start_date: str, end_date: str, department: str, sub_type: str):
     try:
-        payload = create_post_data(start_date, end_date, department, sub_type)
-        logging.info(
-            f"Requesting {department} ({start_date} to {end_date}): {json.dumps(payload)}"
-        )
-        response = requests.post(
-            url=BASE_URL,
-            data=json.dumps(payload),
-            headers={"Content-Type": "application/json", "User-Agent": "curl/7.68.0"},
-            timeout=60,  # Bumped up for bigger requests
-        )
+        response = requests.post(url, json=payload)
         response.raise_for_status()
-        result = response.json()
-        if "file_url" not in result:
-            logging.warning(
-                f"{department} ({start_date} to {end_date}): No file_url in response"
-            )
-            return None
-
-        logging.info(f"Requested {department} ({start_date} to {end_date})")
-        file_url = result["file_url"]
+        data = response.json()
+        file_url = data.get("file_url")
+        file_name = data.get("file_name")
+        logging.info(
+            f"Download requested for {department} ({start_date} to {end_date}), award type: {sub_award_type}"
+        )
+        logging.info(f"Status URL: {data.get('status_url', 'N/A')}")
         logging.info(f"File URL: {file_url}")
-        status_url = result.get("status_url", "N/A")  # Safe get in case it's missing
-        logging.info(f"Status URL: {status_url}")
+        logging.info(f"File name: {file_name}")
         return file_url
     except requests.exceptions.RequestException as e:
-        logging.error(
-            f"Error requesting download for {department} ({start_date} to {end_date}): {str(e)}"
-        )
+        logging.error(f"Error requesting download: {str(e)}")
         return None
 
 
 def check_file_status(file_url):
-    """Check if the file is ready for download by making a HEAD request"""
+    """Check if a file is ready for download"""
     try:
-        response = requests.head(file_url, timeout=30)
-        return (
-            response.status_code == 200
-            and int(response.headers.get("Content-Length", 0)) > 0
-        )
+        response = requests.head(file_url)
+        return response.status_code == 200
     except requests.exceptions.RequestException:
         return False
 
 
-def download_file(file_url, department, start_date, end_date):
-    output_dir = "contract_data"
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Create a deterministic filename without timestamp to avoid duplicates
-    file_id = (
-        f"usaspending_{department.lower().replace(' ', '_')}_{start_date}_{end_date}"
-    )
-    output_file = os.path.join(output_dir, f"{file_id}.zip")
+def fetch_download(
+    file_url, department, start_date, end_date, sub_award_type="procurement"
+):
+    """Fetch a file from the provided URL and save it"""
+    # Create a deterministic filename based on parameters
+    dept_name = department.replace(" ", "_").lower()
+    filename = f"{dept_name}_{sub_award_type}_{start_date}_to_{end_date}.zip"
+    download_dir = "contract_data"
+    os.makedirs(download_dir, exist_ok=True)
+    file_path = os.path.join(download_dir, filename)
 
     # Check if file already exists
-    if os.path.exists(output_file):
-        logging.info(f"File already exists: {output_file}")
-        return os.path.basename(output_file)
+    if os.path.exists(file_path):
+        logging.info(f"File {filename} already exists, skipping download")
+        return file_path
 
+    # Wait for file to be ready
+    max_attempts = 30
+    attempts = 0
+    while attempts < max_attempts:
+        if check_file_status(file_url):
+            break
+        logging.info(f"File not ready yet, waiting... ({attempts+1}/{max_attempts})")
+        time.sleep(10)
+        attempts += 1
+
+    if attempts == max_attempts:
+        logging.error("File never became ready for download")
+        return None
+
+    # Download the file
     try:
-        logging.info(
-            f"{department} ({start_date} to {end_date}): Downloading {file_url}"
-        )
-        response = requests.get(file_url, stream=True, timeout=600)
+        logging.info(f"Downloading {filename}...")
+        response = requests.get(file_url, stream=True)
         response.raise_for_status()
-        with open(output_file, "wb") as f:
+
+        with open(file_path, "wb") as f:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
-        logging.info(
-            f"{department} ({start_date} to {end_date}): Saved to {output_file}"
-        )
-        return os.path.basename(output_file)
+
+        logging.info(f"Download complete: {filename}")
+        return file_path
     except requests.exceptions.RequestException as e:
-        logging.error(
-            f"Error downloading {department} ({start_date} to {end_date}): {str(e)}"
-        )
+        logging.error(f"Error downloading file: {str(e)}")
+        # Clean up partial download
+        if os.path.exists(file_path):
+            os.remove(file_path)
         return None
 
 
-def fetch_download(
-    file_url, department, start_date, end_date, max_wait_attempts=60, time_interval=30
-):
-    attempt = 1
-    while attempt <= max_wait_attempts:
-        # First check if the file is ready
-        if check_file_status(file_url):
-            filename = download_file(file_url, department, start_date, end_date)
-            if filename:
-                return filename
+def check_and_download_missing(file_urls, successful_downloads):
+    """Check for missing downloads and try to recover them"""
+    successful_filenames = [os.path.basename(f) for f in successful_downloads if f]
+    missing_files = []
 
-        logging.info(
-            f"{department}: Attempt {attempt}/{max_wait_attempts} - File not ready yet, waiting..."
+    for (
+        department,
+        start_date,
+        end_date,
+        sub_award_type,
+    ), file_url in file_urls.items():
+        dept_name = department.replace(" ", "_").lower()
+        expected_filename = (
+            f"{dept_name}_{sub_award_type}_{start_date}_to_{end_date}.zip"
         )
-        time.sleep(time_interval)
-        attempt += 1
 
-    logging.warning(
-        f"{department} ({start_date} to {end_date}): Not ready after {max_wait_attempts} attempts."
-    )
-    return None
-
-
-def check_and_download_missing(
-    file_urls, successful_downloads, max_attempts=10, wait_interval=30
-):
-    missing_files = {}
-
-    for (department, start, end), file_url in file_urls.items():
-        # Skip if already downloaded or no URL available
-        file_id = (
-            f"usaspending_{department.lower().replace(' ', '_')}_{start}_{end}.zip"
-        )
-        if file_id in successful_downloads or file_url is None:
-            continue
-
-        logging.info(
-            f"Attempting to recover missing file: {department} ({start} to {end})"
-        )
-        filename = fetch_download(
-            file_url, department, start, end, max_attempts, wait_interval
-        )
-        if not filename:
-            logging.warning(
-                f"{department} ({start} to {end}): Still missing after cleanup."
+        if expected_filename not in successful_filenames:
+            logging.info(f"Attempting to recover {expected_filename}...")
+            filename = fetch_download(
+                file_url, department, start_date, end_date, sub_award_type
             )
-            missing_files[(department, start, end)] = file_url
+            if not filename:
+                missing_files.append(expected_filename)
 
     return missing_files
 
@@ -203,8 +189,9 @@ def create_date_ranges(start_date_str, end_date_str, interval_months=3):
     return date_ranges
 
 
-def main(department, start_date=None, end_date=None, sub_type="procurement"):
-    # Set end date to today in UTC
+def main(department, sub_award_type="procurement", start_date=None, end_date=None):
+    """Download contract data for a specific department and award type"""
+    # Set default end date to today in UTC if not provided
     if end_date is None:
         end_date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
 
@@ -216,21 +203,29 @@ def main(department, start_date=None, end_date=None, sub_type="procurement"):
     date_ranges = create_date_ranges(start_date, end_date, interval_months=3)
 
     logging.info(f"Processing date ranges: {date_ranges}")
+    logging.info(f"Department: {department}, Award Type: {sub_award_type}")
 
     # Step 1: Fire off all requests
     file_urls = {}
     logging.info("Initiating all download requests...")
     for start_date, end_date in date_ranges:
-        file_url = request_download(start_date, end_date, department, sub_type)
-        file_urls[(department, start_date, end_date)] = file_url
+        file_url = request_download(start_date, end_date, department, sub_award_type)
+        file_urls[(department, start_date, end_date, sub_award_type)] = file_url
         time.sleep(3)
 
     # Step 2: Fetch the files
     successful_downloads = []
     logging.info("\nFetching generated files...")
-    for (department, start_date, end_date), file_url in file_urls.items():
+    for (
+        department,
+        start_date,
+        end_date,
+        sub_award_type,
+    ), file_url in file_urls.items():
         if file_url:
-            filename = fetch_download(file_url, department, start_date, end_date)
+            filename = fetch_download(
+                file_url, department, start_date, end_date, sub_award_type
+            )
             if filename:
                 successful_downloads.append(filename)
         else:
@@ -249,6 +244,8 @@ def main(department, start_date=None, end_date=None, sub_type="procurement"):
     else:
         logging.info("\nAll files downloaded successfully!")
 
+    return successful_downloads
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -256,21 +253,22 @@ if __name__ == "__main__":
     )
     parser.add_argument("--department", required=True, help="Department to download")
     parser.add_argument(
+        "--sub-award-type",
+        default="procurement",
+        choices=["procurement", "grant"],
+        help="Type of award to download (default: procurement)",
+    )
+    parser.add_argument(
         "--start-date",
         default=None,
-        help="Start date in YYYY-MM-DD format (default: 2022-01-01)",
+        help="Start date in YYYY-MM-DD format (default: 2024-01-01)",
     )
     parser.add_argument(
         "--end-date",
         default=None,
-        help="End date in YYYY-MM-DD format (default: today)",
-    )
-    parser.add_argument(
-        "--sub-type",
-        default="procurement",
-        help="Sub-type of contract data to download (default: procurement)",
+        help="End date in YYYY-MM-DD format (default: today's date)",
     )
 
     args = parser.parse_args()
 
-    main(args.department, args.start_date, args.end_date, args.sub_type)
+    main(args.department, args.sub_award_type, args.start_date, args.end_date)
