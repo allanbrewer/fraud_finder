@@ -161,6 +161,10 @@ def filter_by_amount_and_keywords(file_path, min_amount, pattern, output_dir):
             else:
                 logging.info(f"  No duplicate IDs found in {filename}")
 
+        # Sort the final results by amount in descending order
+        keyword_filtered = keyword_filtered.sort_values(by=amount_col, ascending=False)
+        logging.info(f"  Sorted results by {amount_col} in descending order")
+
         # Save filtered file
         output_filename = f"filtered_{filename}"
         output_path = os.path.join(output_dir, output_filename)
@@ -257,6 +261,23 @@ def combine_filtered_files(filtered_files, output_dir):
         logging.warning(
             "No ID column found in combined data, unable to check for duplicates"
         )
+
+    # Ensure the final combined file is sorted by amount in descending order
+    amount_columns = [
+        "current_total_value_of_award",
+        "total_dollars_obligated",
+        "total_obligated_amount",
+    ]
+
+    amount_col = None
+    for col in amount_columns:
+        if col in combined_df.columns:
+            amount_col = col
+            break
+
+    if amount_col:
+        combined_df = combined_df.sort_values(by=amount_col, ascending=False)
+        logging.info(f"Sorted combined results by {amount_col} in descending order")
 
     # Save combined file
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
