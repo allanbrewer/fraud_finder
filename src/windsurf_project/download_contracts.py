@@ -99,13 +99,13 @@ def fetch_download(
         return file_path
 
     # Wait for file to be ready
-    max_attempts = 30
+    max_attempts = 40
     attempts = 0
     while attempts < max_attempts:
         if check_file_status(file_url):
             break
         logging.info(f"File not ready yet, waiting... ({attempts+1}/{max_attempts})")
-        time.sleep(10)
+        time.sleep(15)
         attempts += 1
 
     if attempts == max_attempts:
@@ -211,7 +211,7 @@ def main(department, sub_award_type="procurement", start_date=None, end_date=Non
     for start_date, end_date in date_ranges:
         file_url = request_download(start_date, end_date, department, sub_award_type)
         file_urls[(department, start_date, end_date, sub_award_type)] = file_url
-        time.sleep(3)
+        time.sleep(5)
 
     # Step 2: Fetch the files
     successful_downloads = []

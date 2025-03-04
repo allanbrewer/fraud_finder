@@ -106,7 +106,7 @@ def process_department(
             results[award_type] = master_file
 
         # Add a small delay between processing different award types
-        time.sleep(2)
+        time.sleep(5)
 
     return results
 
