@@ -21,10 +21,14 @@ logging.basicConfig(
 # Import the prompt from promt.py
 try:
     from promt import prompt
+
+    logging.info("Successfully imported prompt from promt.py")
 except ImportError:
     try:
         # Try relative import if the first import fails
         from .promt import prompt
+
+        logging.info("Successfully imported prompt from promt.py")
     except ImportError:
         logging.error("Could not import prompt from promt.py")
         prompt = None
