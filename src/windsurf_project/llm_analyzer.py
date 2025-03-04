@@ -62,7 +62,7 @@ class LLMAnalyzer:
             elif self.provider == "anthropic":
                 self.model = "claude-3-7-sonnet-latest"
             elif self.provider == "grok":
-                self.model = "grok-beta"
+                self.model = "grok-2-latest"
             else:
                 raise ValueError(f"Unknown provider: {provider}")
         else:

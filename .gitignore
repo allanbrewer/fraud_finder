@@ -2,6 +2,7 @@
 processed_data/
 contract_data/
 filtered_data/
+llm_analysis/
 .DS_Store
 *.zip
 *.csv

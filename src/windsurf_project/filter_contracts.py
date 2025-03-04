@@ -22,12 +22,12 @@ def setup_advanced_keywords():
         "inclusion",  # Core DEI term
         "gender",  # DEI-adjacent (e.g., "gender equity")
         "non-binary",  # DEI niche (rare, but DOGE hates it)
-        "training",  # DEI/waste flag (e.g., "DEI training" or vague $)
-        "consulting",  # Waste flag (overpaid fluff)
-        "support",  # Waste flag (vague "support services")
-        "initiative",  # Waste flag (e.g., "diversity initiative")
-        "administrative",  # Waste flag (clerical bloat)
-        "public-facing",
+        # "training",  # DEI/waste flag (e.g., "DEI training" or vague $)
+        # "consulting",  # Waste flag (overpaid fluff)
+        # "support",  # Waste flag (vague "support services")
+        # "initiative",  # Waste flag (e.g., "diversity initiative")
+        # "administrative",  # Waste flag (clerical bloat)
+        # "public-facing",
     ]
 
     # Create a regex pattern to match whole words or phrases
