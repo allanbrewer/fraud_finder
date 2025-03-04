@@ -6,6 +6,7 @@ import argparse
 import logging
 from datetime import datetime
 import glob
+import json
 
 # Configure logging
 logging.basicConfig(
@@ -290,7 +291,9 @@ def combine_filtered_files(filtered_files, output_dir):
     return combined_path
 
 
-def process_all_files(input_dir, output_dir, min_amount):
+def process_all_files(
+    input_dir, output_dir, min_amount, award_type=None
+):
     """
     Process all CSV files in the input directory and its subdirectories
 
@@ -298,6 +301,7 @@ def process_all_files(input_dir, output_dir, min_amount):
         input_dir: Directory containing processed CSV files
         output_dir: Directory to save filtered files
         min_amount: Minimum dollar amount to include
+        award_type: Type of award to filter ('procurement', 'grant', or None for both)
 
     Returns:
         List of filtered file paths
@@ -305,14 +309,19 @@ def process_all_files(input_dir, output_dir, min_amount):
     # Create output directory
     os.makedirs(output_dir, exist_ok=True)
 
-    # Setup advanced keywords pattern
+    # Set up keyword pattern
     pattern = setup_advanced_keywords()
 
-    # Find all CSV files in input directory and subdirectories
+    # Find all CSV files in the input directory and its subdirectories
     csv_files = []
     for root, _, files in os.walk(input_dir):
         for file in files:
-            if file.endswith("_flagged_master.csv"):
+            if file.endswith(".csv") and "flagged_master" in file:
+                # Check if the file matches the award type filter
+                if award_type:
+                    # Check if the file contains the award type in its name
+                    if award_type.lower() not in file.lower():
+                        continue
                 csv_files.append(os.path.join(root, file))
 
     if not csv_files:
@@ -330,21 +339,23 @@ def process_all_files(input_dir, output_dir, min_amount):
         if filtered_path:
             filtered_files.append(filtered_path)
 
-    # Create a summary file
+    # Create a summary file in JSON format
     if filtered_files:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        summary_path = os.path.join(output_dir, f"filtering_summary_{timestamp}.txt")
-
+        summary_path = os.path.join(output_dir, f"filtering_summary_{timestamp}.json")
+        
+        summary_data = {
+            "timestamp": timestamp,
+            "minimum_amount": min_amount,
+            "award_type": award_type if award_type else "all",
+            "files_processed": len(csv_files),
+            "files_with_matches": len(filtered_files),
+            "filtered_files": [os.path.basename(f) for f in filtered_files]
+        }
+        
         with open(summary_path, "w") as f:
-            f.write(f"Filtering Summary ({timestamp})\n")
-            f.write(f"Minimum Amount: ${min_amount:,}\n")
-            f.write(f"Files Processed: {len(csv_files)}\n")
-            f.write(f"Files with Matches: {len(filtered_files)}\n\n")
-
-            for file_path in filtered_files:
-                file_name = os.path.basename(file_path)
-                f.write(f"- {file_name}\n")
-
+            json.dump(summary_data, f, indent=2)
+            
         logging.info(f"Summary saved to {summary_path}")
 
     return filtered_files
@@ -355,6 +366,7 @@ def main(
     output_dir="filtered_data",
     min_amount=500000,
     combine=True,
+    award_type=None,
 ):
     """
     Main function to filter contracts by amount and keywords
@@ -364,14 +376,18 @@ def main(
         output_dir: Directory to save filtered files
         min_amount: Minimum dollar amount to include
         combine: Whether to combine all filtered files into a single file
+        award_type: Type of award to filter ('procurement', 'grant', or None for both)
 
     Returns:
         List of filtered file paths
     """
     logging.info(f"Starting advanced filtering with minimum amount: ${min_amount:,}")
+    
+    if award_type:
+        logging.info(f"Filtering only {award_type} awards")
 
     # Process all files
-    filtered_files = process_all_files(input_dir, output_dir, min_amount)
+    filtered_files = process_all_files(input_dir, output_dir, min_amount, award_type)
 
     if not filtered_files:
         logging.warning("No files passed the filtering criteria")
@@ -413,7 +429,12 @@ if __name__ == "__main__":
         action="store_true",
         help="Do not combine filtered files into a single file",
     )
+    parser.add_argument(
+        "--award-type",
+        choices=["procurement", "grant"],
+        help="Type of award to filter (default: both types)",
+    )
 
     args = parser.parse_args()
 
-    main(args.input_dir, args.output_dir, args.min_amount, not args.no_combine)
+    main(args.input_dir, args.output_dir, args.min_amount, not args.no_combine, args.award_type)
