@@ -308,6 +308,25 @@ class LLMAnalyzer:
         try:
             result = json.loads(response_text)
 
+            # Handle case where result is a list instead of a dictionary
+            if isinstance(result, list):
+                logging.warning(
+                    "API returned a list instead of a dictionary. Converting to dictionary format."
+                )
+                result = {"dei_contracts": [], "doge_targets": result}
+
+            # Ensure result has the expected structure
+            if not isinstance(result, dict):
+                logging.error(f"Unexpected result type: {type(result)}")
+                logging.error(f"Raw response: {response_text}")
+                return None
+
+            # Ensure the required keys exist
+            if "dei_contracts" not in result:
+                result["dei_contracts"] = []
+            if "doge_targets" not in result:
+                result["doge_targets"] = []
+
             # Count contracts in output
             dei_count = len(result.get("dei_contracts", []))
             doge_count = len(result.get("doge_targets", []))
