@@ -15,6 +15,7 @@ prompt = """
     - Summarize the description for each award but keep the keywords in the original text. Make them as short as possible.
     - Double check if the contract is live by using the https://www.USASpending.gov or https://www.fpds.gov/ search and making sure thare are no modifications to the contract that terminite it. E.g. "terminted for convinience" or updated end date is before today.
     - Output as two JSON lists: `dei_contracts` and `doge_targets`.
+    - If a award is flagged for one list (`dei_contracts` OR `doge_targets`) then it should not be added to the other list.
 
     Rules:
     - Go to https://doge.gov/savings and look at the contract descriptions in the list ot understand the mission criticality. Use the descriptions on the websiteto flag contracts on the provided text.
