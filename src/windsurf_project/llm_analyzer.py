@@ -41,7 +41,7 @@ class LLMAnalyzer:
         self,
         api_key=None,
         model=None,
-        provider="openai",
+        provider="grok",
         max_tokens=4096,
         temperature=0.1,
     ):
@@ -101,21 +101,23 @@ class LLMAnalyzer:
         """
         try:
             df = pd.read_csv(csv_file)
+            total_rows = len(df)
+            logging.info(f"CSV file contains {total_rows} rows")
 
             # Limit rows if specified
             if max_rows and len(df) > max_rows:
                 logging.warning(
-                    f"CSV file has {len(df)} rows, limiting to {max_rows} rows"
+                    f"CSV file has {total_rows} rows, limiting to {max_rows} rows"
                 )
                 df = df.head(max_rows)
 
             # Convert to string representation
             csv_string = df.to_csv(index=False)
-            return csv_string
+            return csv_string, total_rows
 
         except Exception as e:
             logging.error(f"Error preparing CSV data: {str(e)}")
-            return None
+            return None, 0
 
     def create_prompt_with_data(self, csv_data, custom_prompt=None):
         """
@@ -275,7 +277,7 @@ class LLMAnalyzer:
             Analysis results as JSON object
         """
         # Prepare CSV data
-        csv_data = self.prepare_csv_data(csv_file, max_rows)
+        csv_data, total_rows = self.prepare_csv_data(csv_file, max_rows)
         if not csv_data:
             return None
 
@@ -305,6 +307,15 @@ class LLMAnalyzer:
         # Parse JSON response
         try:
             result = json.loads(response_text)
+
+            # Count contracts in output
+            dei_count = len(result.get("dei_contracts", []))
+            doge_count = len(result.get("doge_targets", []))
+            total_contracts = dei_count + doge_count
+
+            logging.info(
+                f"LLM analysis found {total_contracts} contracts: {dei_count} DEI contracts and {doge_count} DOGE targets"
+            )
 
             # Save to file if specified
             if output_file:
@@ -369,9 +380,9 @@ def main():
     )
     parser.add_argument(
         "--provider",
-        default="openai",
+        default="grok",
         choices=["openai", "anthropic", "grok"],
-        help="LLM provider to use (default: openai)",
+        help="LLM provider to use (default: grok)",
     )
     parser.add_argument(
         "--model",
