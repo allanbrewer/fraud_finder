@@ -13,7 +13,7 @@ prompt = """
     - Extract `award_id_piid`, `current_total_value_of_award`, `prime_award_base_transaction_description`, `period_of_performance_current_end_date` and `recipient_name`.
     - Flag if live: end date after today.
     - Summarize the description for each award but keep the keywords in the original text. Make them as short as possible.
-    - Double check if the contract is live by using the https://www.USASpending.gov or https://www.fpds.gov/ search and making sure thare are no modifications to the contract that terminite it. E.g. "terminted for convinience" or updated end date is before today.
+    - Double check if the contract is live by using the https://www.fpds.gov/ ezSearch and review all modification to make determine if the contract has been terminated it. E.g. "terminted for convinience", "close out" or updated end date is before today.
     - Output as two JSON lists: `dei_contracts` and `doge_targets`.
     - If a award is flagged for one list (`dei_contracts` OR `doge_targets`) then it should not be added to the other list.
 
