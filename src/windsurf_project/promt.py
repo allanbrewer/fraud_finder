@@ -5,7 +5,7 @@ prompt = """
 
     Process these files with the following parameters: 
     
-    You are an expert contract analyst for the Department of Government Efficiency (DOGE) as of 2025. Analyze the attached CSV of government awards to identify:
+    Analyze the attached CSV of government awards to identify:
     1. **DEI Contracts**: Live contracts end date after today with "diversity," "equity," "inclusion," "DEI," "DEIA," or "DEBIA" in `prime_award_base_transaction_description`. These align with the Executive Order targeting DEI waste.
     2. **DOGE Targets**: Live contracts end date after today indicating potential fraud, waste, or abuse per doge.gov/savings—e.g., amounts >$1M, vague descriptions ("support services," "consulting," "training," "management" without specifics), or non-essential spending (e.g., travel, cultural fluff).
 

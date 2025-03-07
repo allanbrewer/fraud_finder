@@ -9,6 +9,7 @@ from datetime import datetime
 import time
 import sys
 from dotenv import load_dotenv
+from mem0 import Memory
 
 # Load environment variables from .env file
 load_dotenv()
@@ -41,7 +42,7 @@ class LLMAnalyzer:
         self,
         api_key=None,
         model=None,
-        provider="grok",
+        provider="xai",
         max_tokens=4096,
         temperature=0.1,
     ):
@@ -51,7 +52,7 @@ class LLMAnalyzer:
         Args:
             api_key: API key for the LLM provider
             model: Model name to use
-            provider: LLM provider (openai, anthropic, grok)
+            provider: LLM provider (openai, anthropic, xai)
             max_tokens: Maximum tokens for response
             temperature: Temperature for response generation
         """
@@ -65,7 +66,7 @@ class LLMAnalyzer:
                 self.model = "gpt-4o-mini"
             elif self.provider == "anthropic":
                 self.model = "claude-3-7-sonnet-latest"
-            elif self.provider == "grok":
+            elif self.provider == "xai":
                 self.model = "grok-2-latest"
             else:
                 raise ValueError(f"Unknown provider: {provider}")
@@ -78,7 +79,7 @@ class LLMAnalyzer:
                 api_key = os.getenv("OPENAI_API_KEY")
             elif self.provider == "anthropic":
                 api_key = os.getenv("ANTHROPIC_API_KEY")
-            elif self.provider == "grok":
+            elif self.provider == "xai":
                 api_key = os.getenv("XAI_API_KEY")
 
         if not api_key:
@@ -87,6 +88,29 @@ class LLMAnalyzer:
             )
 
         self.api_key = api_key
+
+        # Config Memory - only for supported providers
+        if self.provider in ["openai", "anthropic", "xai"]:
+            try:
+                mem_provider = self.provider
+                config = {
+                    "llm": {
+                        "provider": mem_provider,
+                        "config": {
+                            "model": self.model,
+                            "temperature": self.temperature,
+                            "max_tokens": self.max_tokens,
+                        },
+                    }
+                }
+                self.memory = Memory.from_config(config)
+                logging.info(f"Memory initialized with provider {mem_provider}")
+            except Exception as e:
+                logging.warning(f"Failed to initialize memory: {str(e)}")
+                self.memory = None
+        else:
+            logging.warning(f"Memory not supported for provider {self.provider}")
+            self.memory = None
 
     def prepare_csv_data(self, csv_file, max_rows=None):
         """
@@ -139,12 +163,14 @@ class LLMAnalyzer:
         )
         return complete_prompt
 
-    def call_openai_api(self, complete_prompt):
+    def call_openai_api(self, complete_prompt, system_message=None, chat_history=None):
         """
         Call OpenAI API with prompt
 
         Args:
             complete_prompt: Complete prompt with CSV data
+            system_message: Optional system message to include
+            chat_history: Optional list of previous messages in the chat
 
         Returns:
             API response as JSON
@@ -154,13 +180,30 @@ class LLMAnalyzer:
             "Authorization": f"Bearer {self.api_key}",
         }
 
+        messages = []
+
+        # Add system message if provided
+        if system_message:
+            messages.append({"role": "system", "content": system_message})
+
+        # Add chat history if provided
+        if chat_history:
+            messages.extend(chat_history)
+
+        # Add current prompt if not in chat mode
+        if not chat_history:
+            messages.append({"role": "user", "content": complete_prompt})
+
         payload = {
             "model": self.model,
-            "messages": [{"role": "user", "content": complete_prompt}],
+            "messages": messages,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
-            "response_format": {"type": "json_object"},
         }
+
+        # Add response format for non-chat mode
+        if not chat_history:
+            payload["response_format"] = {"type": "json_object"}
 
         try:
             response = requests.post(
@@ -180,12 +223,16 @@ class LLMAnalyzer:
                 logging.error(f"Response body: {e.response.text}")
             return None
 
-    def call_anthropic_api(self, complete_prompt):
+    def call_anthropic_api(
+        self, complete_prompt, system_message=None, chat_history=None
+    ):
         """
         Call Anthropic API with prompt
 
         Args:
             complete_prompt: Complete prompt with CSV data
+            system_message: Optional system message to include
+            chat_history: Optional list of previous messages in the chat
 
         Returns:
             API response as JSON
@@ -196,12 +243,25 @@ class LLMAnalyzer:
             "anthropic-version": "2023-06-01",
         }
 
+        messages = []
+
+        # Add chat history if provided
+        if chat_history:
+            messages.extend(chat_history)
+        else:
+            # Add current prompt if not in chat mode
+            messages.append({"role": "user", "content": complete_prompt})
+
+        system = "You are a contract analysis expert. Respond only with valid JSON."
+        if system_message:
+            system = system_message
+
         payload = {
             "model": self.model,
-            "messages": [{"role": "user", "content": complete_prompt}],
+            "messages": messages,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
-            "system": "You are a contract analysis expert. Respond only with valid JSON.",
+            "system": system,
         }
 
         try:
@@ -220,12 +280,14 @@ class LLMAnalyzer:
                 logging.error(f"Response body: {e.response.text}")
             return None
 
-    def call_grok_api(self, complete_prompt):
+    def call_xai_api(self, complete_prompt, system_message=None, chat_history=None):
         """
-        Call Grok API with prompt
+        Call XAI API with prompt
 
         Args:
             complete_prompt: Complete prompt with CSV data
+            system_message: Optional system message to include
+            chat_history: Optional list of previous messages in the chat
 
         Returns:
             API response as JSON
@@ -235,13 +297,29 @@ class LLMAnalyzer:
             "Authorization": f"Bearer {self.api_key}",
         }
 
+        messages = []
+
+        # Add system message if provided
+        if system_message:
+            messages.append({"role": "system", "content": system_message})
+
+        # Add chat history if provided
+        if chat_history:
+            messages.extend(chat_history)
+        else:
+            # Add current prompt if not in chat mode
+            messages.append({"role": "user", "content": complete_prompt})
+
         payload = {
             "model": self.model,
-            "messages": [{"role": "user", "content": complete_prompt}],
+            "messages": messages,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
-            "response_format": {"type": "json_object"},
         }
+
+        # Add response format for non-chat mode
+        if not chat_history:
+            payload["response_format"] = {"type": "json_object"}
 
         try:
             response = requests.post(
@@ -255,14 +333,21 @@ class LLMAnalyzer:
             return result["choices"][0]["message"]["content"]
 
         except requests.exceptions.RequestException as e:
-            logging.error(f"Error calling Grok API: {str(e)}")
+            logging.error(f"Error calling Xai API: {str(e)}")
             if hasattr(e, "response") and e.response is not None:
                 logging.error(f"Response status: {e.response.status_code}")
                 logging.error(f"Response body: {e.response.text}")
             return None
 
     def analyze_csv(
-        self, csv_file, custom_prompt=None, max_rows=None, output_file=None
+        self,
+        csv_file,
+        custom_prompt=None,
+        max_rows=None,
+        output_file=None,
+        system_message=None,
+        description=None,
+        memory_query=None,
     ):
         """
         Analyze CSV file using LLM
@@ -272,6 +357,9 @@ class LLMAnalyzer:
             custom_prompt: Custom prompt to use instead of default
             max_rows: Maximum number of rows to include
             output_file: Path to save output JSON
+            system_message: Optional system message to include
+            description: Optional description to include in the system message
+            memory_query: Optional query to use for retrieving memories
 
         Returns:
             Analysis results as JSON object
@@ -284,16 +372,25 @@ class LLMAnalyzer:
         # Create complete prompt
         complete_prompt = self.create_prompt_with_data(csv_data, custom_prompt)
 
+        # Create system message with description and memories if available
+        final_system_message = self.create_system_message_with_memories(
+            description, memory_query
+        )
+        if system_message:
+            final_system_message = f"{final_system_message}\n\n{system_message}"
+
         # Call appropriate API based on provider
         logging.info(f"Calling {self.provider.upper()} API with model {self.model}...")
         start_time = time.time()
 
         if self.provider == "openai":
-            response_text = self.call_openai_api(complete_prompt)
+            response_text = self.call_openai_api(complete_prompt, final_system_message)
         elif self.provider == "anthropic":
-            response_text = self.call_anthropic_api(complete_prompt)
-        elif self.provider == "grok":
-            response_text = self.call_grok_api(complete_prompt)
+            response_text = self.call_anthropic_api(
+                complete_prompt, final_system_message
+            )
+        elif self.provider == "xai":
+            response_text = self.call_xai_api(complete_prompt, final_system_message)
         else:
             logging.error(f"Unknown provider: {self.provider}")
             return None
@@ -350,19 +447,29 @@ class LLMAnalyzer:
             return None
 
     def analyze_multiple_csv(
-        self, csv_files, custom_prompt=None, max_rows=None, output_dir=None
+        self,
+        csv_files,
+        custom_prompt=None,
+        max_rows=None,
+        output_dir=None,
+        system_message=None,
+        description=None,
+        memory_query=None,
     ):
         """
         Analyze multiple CSV files
 
         Args:
-            csv_files: List of CSV file paths
+            csv_files: List of CSV files to analyze
             custom_prompt: Custom prompt to use
-            max_rows: Maximum rows per file
+            max_rows: Maximum rows to include
             output_dir: Directory to save output files
+            system_message: Optional system message to include
+            description: Optional description to include in the system message
+            memory_query: Optional query to use for retrieving memories
 
         Returns:
-            Dictionary of results by file
+            Dictionary of results by filename
         """
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
@@ -373,89 +480,293 @@ class LLMAnalyzer:
             filename = os.path.basename(csv_file)
             logging.info(f"Analyzing {filename}...")
 
+            # Create output file path
+            output_file = None
             if output_dir:
                 output_file = os.path.join(
                     output_dir, f"analysis_{os.path.splitext(filename)[0]}.json"
                 )
-            else:
-                output_file = None
 
-            result = self.analyze_csv(csv_file, custom_prompt, max_rows, output_file)
+            result = self.analyze_csv(
+                csv_file,
+                custom_prompt,
+                max_rows,
+                output_file,
+                system_message,
+                description,
+                memory_query,
+            )
 
             if result:
                 results[filename] = result
 
         return results
 
+    def chat(self, user_input, system_message=None, chat_history=None):
+        """
+        Chat with the LLM
+
+        Args:
+            user_input: User message
+            system_message: Optional system message
+            chat_history: Optional chat history
+
+        Returns:
+            Tuple of (response_text, updated_chat_history)
+        """
+        # Initialize chat history if not provided
+        if chat_history is None:
+            chat_history = []
+
+        # Add user message to chat history
+        chat_history.append({"role": "user", "content": user_input})
+
+        # Create system message with memories if available
+        final_system_message = system_message
+        if system_message and hasattr(self, "memory") and self.memory is not None:
+            try:
+                # Search for relevant memories
+                relevant_memories = self.memory.search(
+                    query=user_input, user_id="default_user", limit=5
+                )
+                if (
+                    relevant_memories
+                    and "results" in relevant_memories
+                    and relevant_memories["results"]
+                ):
+                    memory_text = "\n".join(
+                        [
+                            f"- {entry['memory']}"
+                            for entry in relevant_memories["results"]
+                        ]
+                    )
+                    final_system_message = (
+                        f"{system_message}\n\nRelevant information:\n{memory_text}"
+                    )
+                    logging.info(
+                        f"Added {len(relevant_memories['results'])} memories to system message"
+                    )
+            except Exception as e:
+                logging.warning(f"Error retrieving memories: {str(e)}")
+
+        # Call appropriate API based on provider
+        logging.info(
+            f"Calling {self.provider.upper()} API for chat with model {self.model}..."
+        )
+        start_time = time.time()
+
+        if self.provider == "openai":
+            response_text = self.call_openai_api("", final_system_message, chat_history)
+        elif self.provider == "anthropic":
+            response_text = self.call_anthropic_api(
+                "", final_system_message, chat_history
+            )
+        elif self.provider == "xai":
+            response_text = self.call_xai_api("", final_system_message, chat_history)
+        else:
+            logging.error(f"Unknown provider: {self.provider}")
+            return None
+
+        elapsed_time = time.time() - start_time
+        logging.info(f"API call completed in {elapsed_time:.2f} seconds")
+
+        if not response_text:
+            return None
+
+        # Add assistant response to chat history
+        chat_history.append({"role": "assistant", "content": response_text})
+
+        return response_text, chat_history
+
+    def add_memory(self, content, user_id=None, metadata=None):
+        """
+        Add a memory to the memory system
+
+        Args:
+            content: Memory content
+            user_id: Optional user ID
+            metadata: Optional metadata
+
+        Returns:
+            True if memory was added, False otherwise
+        """
+        if not hasattr(self, "memory") or self.memory is None:
+            logging.warning(f"Memory not supported for provider {self.provider}")
+            return False
+
+        try:
+            # Create a simple message format for the memory
+            memory_data = [{"role": "user", "content": content}]
+
+            # Add memory using the mem0 API
+            self.memory.add(
+                memory_data, user_id=user_id or "default_user", metadata=metadata or {}
+            )
+            logging.info(f"Added memory: {content}")
+            return True
+        except Exception as e:
+            logging.error(f"Error adding memory: {str(e)}")
+            return False
+
+    def create_system_message_with_memories(self, description=None, query=None):
+        """
+        Create a system message with relevant memories
+
+        Args:
+            description: Optional description to include in system message
+            query: Optional query to use for retrieving memories
+
+        Returns:
+            System message with memories
+        """
+        base_message = "You are a contract analysis expert specialized in identifying DEI contracts and DOGE targets."
+
+        if description:
+            base_message = f"{base_message}\n\n{description}"
+
+        # Add memories if available
+        if hasattr(self, "memory") and self.memory is not None and query:
+            try:
+                # Search for relevant memories (using search instead of retrieve)
+                relevant_memories = self.memory.search(
+                    query=query, user_id="default_user", limit=5
+                )
+                if (
+                    relevant_memories
+                    and "results" in relevant_memories
+                    and relevant_memories["results"]
+                ):
+                    memory_text = "\n".join(
+                        [
+                            f"- {entry['memory']}"
+                            for entry in relevant_memories["results"]
+                        ]
+                    )
+                    base_message = (
+                        f"{base_message}\n\nRelevant information:\n{memory_text}"
+                    )
+                    logging.info(
+                        f"Added {len(relevant_memories['results'])} memories to system message"
+                    )
+            except Exception as e:
+                logging.warning(f"Error retrieving memories: {str(e)}")
+
+        return base_message
+
 
 def main():
     """Main function to run LLM analysis from command line"""
     parser = argparse.ArgumentParser(description="Analyze contracts using LLM APIs")
 
-    parser.add_argument(
+    # Create subparsers for different modes
+    subparsers = parser.add_subparsers(dest="mode", help="Operation mode")
+
+    # Analyze CSV mode
+    analyze_parser = subparsers.add_parser(
+        "analyze", help="Analyze contracts in CSV files"
+    )
+    analyze_parser.add_argument(
         "--csv-file",
         required=True,
         help="Path to CSV file or directory containing CSV files",
     )
-    parser.add_argument(
-        "--provider",
-        default="grok",
-        choices=["openai", "anthropic", "grok"],
-        help="LLM provider to use (default: grok)",
-    )
-    parser.add_argument(
-        "--model",
-        default=None,
-        help="Model name to use (default depends on provider)",
-    )
-    parser.add_argument(
-        "--api-key",
-        default=None,
-        help="API key (default: read from .env file)",
-    )
-    parser.add_argument(
+    analyze_parser.add_argument(
         "--max-rows",
         type=int,
         default=None,
         help="Maximum rows to include from CSV (default: all)",
     )
-    parser.add_argument(
+    analyze_parser.add_argument(
         "--output-dir",
         default="llm_analysis",
         help="Directory to save output files (default: llm_analysis)",
     )
-    parser.add_argument(
+    analyze_parser.add_argument(
         "--prompt-file",
         default=None,
         help="Custom prompt file (default: use built-in prompt)",
     )
-    parser.add_argument(
-        "--max-tokens",
-        type=int,
-        default=4096,
-        help="Maximum tokens for response (default: 4096)",
+    analyze_parser.add_argument(
+        "--system-message",
+        default=None,
+        help="System message to include in API call",
     )
-    parser.add_argument(
-        "--temperature",
-        type=float,
-        default=0.1,
-        help="Temperature for response generation (default: 0.1)",
+    analyze_parser.add_argument(
+        "--description",
+        default=None,
+        help="Simple description to include in the system message",
     )
+    analyze_parser.add_argument(
+        "--memory-query",
+        default=None,
+        help="Query to use for retrieving memories",
+    )
+
+    # Chat mode
+    chat_parser = subparsers.add_parser("chat", help="Chat with the LLM")
+    chat_parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help="Start an interactive chat session",
+    )
+    chat_parser.add_argument(
+        "--message",
+        default=None,
+        help="Single message to send to the LLM (non-interactive mode)",
+    )
+    chat_parser.add_argument(
+        "--system-message",
+        default="You are an expert contract analyst for the Department of Government Efficiency (DOGE) as of 2025.",
+        help="System message to include in API call",
+    )
+    chat_parser.add_argument(
+        "--save-history",
+        default=None,
+        help="File to save chat history to",
+    )
+    chat_parser.add_argument(
+        "--load-history",
+        default=None,
+        help="File to load chat history from",
+    )
+
+    # Common arguments for both modes
+    for subparser in [analyze_parser, chat_parser]:
+        subparser.add_argument(
+            "--provider",
+            default="xai",
+            choices=["openai", "anthropic", "xai"],
+            help="LLM provider to use (default: xai)",
+        )
+        subparser.add_argument(
+            "--model",
+            default=None,
+            help="Model name to use (default depends on provider)",
+        )
+        subparser.add_argument(
+            "--api-key",
+            default=None,
+            help="API key (default: read from .env file)",
+        )
+        subparser.add_argument(
+            "--max-tokens",
+            type=int,
+            default=4096,
+            help="Maximum tokens for response (default: 4096)",
+        )
+        subparser.add_argument(
+            "--temperature",
+            type=float,
+            default=0.1,
+            help="Temperature for response generation (default: 0.1)",
+        )
 
     args = parser.parse_args()
 
-    # Create output directory
-    os.makedirs(args.output_dir, exist_ok=True)
-
-    # Load custom prompt if specified
-    custom_prompt = None
-    if args.prompt_file:
-        try:
-            with open(args.prompt_file, "r") as f:
-                custom_prompt = f.read()
-        except Exception as e:
-            logging.error(f"Error reading prompt file: {str(e)}")
-            return 1
+    # Default to analyze mode if no mode specified
+    if not args.mode:
+        parser.print_help()
+        return 1
 
     # Initialize analyzer
     try:
@@ -469,6 +780,31 @@ def main():
     except ValueError as e:
         logging.error(str(e))
         return 1
+
+    # Handle different modes
+    if args.mode == "analyze":
+        return handle_analyze_mode(args, analyzer)
+    elif args.mode == "chat":
+        return handle_chat_mode(args, analyzer)
+    else:
+        parser.print_help()
+        return 1
+
+
+def handle_analyze_mode(args, analyzer):
+    """Handle analyze mode"""
+    # Create output directory
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    # Load custom prompt if specified
+    custom_prompt = None
+    if args.prompt_file:
+        try:
+            with open(args.prompt_file, "r") as f:
+                custom_prompt = f.read()
+        except Exception as e:
+            logging.error(f"Error reading prompt file: {str(e)}")
+            return 1
 
     # Process CSV files
     if os.path.isdir(args.csv_file):
@@ -486,7 +822,13 @@ def main():
         logging.info(f"Found {len(csv_files)} CSV files to analyze")
 
         results = analyzer.analyze_multiple_csv(
-            csv_files, custom_prompt, args.max_rows, args.output_dir
+            csv_files,
+            custom_prompt,
+            args.max_rows,
+            args.output_dir,
+            args.system_message,
+            args.description,
+            args.memory_query,
         )
 
         # Save summary
@@ -515,7 +857,13 @@ def main():
         )
 
         result = analyzer.analyze_csv(
-            args.csv_file, custom_prompt, args.max_rows, output_file
+            args.csv_file,
+            custom_prompt,
+            args.max_rows,
+            output_file,
+            args.system_message,
+            args.description,
+            args.memory_query,
         )
 
         if result:
@@ -523,6 +871,107 @@ def main():
         else:
             logging.error("Analysis failed")
             return 1
+
+    return 0
+
+
+def handle_chat_mode(args, analyzer):
+    """Handle chat mode"""
+    # Load chat history if specified
+    chat_history = None
+    if args.load_history:
+        try:
+            with open(args.load_history, "r") as f:
+                chat_history = json.load(f)
+            logging.info(f"Loaded chat history from {args.load_history}")
+        except Exception as e:
+            logging.error(f"Error loading chat history: {str(e)}")
+            chat_history = []
+
+    # Interactive mode
+    if args.interactive:
+        print(f"Chat mode with {args.provider.upper()} ({analyzer.model})")
+        print("Type 'exit' or 'quit' to end the conversation.")
+        print("Type 'save' to save the conversation history.")
+        print("Type 'memory: <content>' to add a memory.")
+        print("-" * 50)
+
+        # Initialize chat history if not loaded
+        if chat_history is None:
+            chat_history = []
+
+        while True:
+            try:
+                user_input = input("\nYou: ")
+
+                # Check for exit commands
+                if user_input.lower() in ["exit", "quit"]:
+                    break
+
+                # Check for save command
+                if user_input.lower() == "save":
+                    save_path = args.save_history or "chat_history.json"
+                    with open(save_path, "w") as f:
+                        json.dump(chat_history, f, indent=2)
+                    print(f"Chat history saved to {save_path}")
+                    continue
+
+                # Check for memory command
+                if user_input.lower().startswith("memory:"):
+                    memory_content = user_input[7:].strip()
+                    if memory_content:
+                        success = analyzer.add_memory(memory_content)
+                        if success:
+                            print(f"Memory added: {memory_content}")
+                        else:
+                            print(
+                                "Failed to add memory. Memory might not be supported with the current provider."
+                            )
+                    else:
+                        print("Memory content cannot be empty")
+                    continue
+
+                # Get response
+                response, chat_history = analyzer.chat(
+                    user_input, args.system_message, chat_history
+                )
+
+                if response:
+                    print(f"\nAssistant: {response}")
+                else:
+                    print("\nAssistant: Sorry, I couldn't generate a response.")
+
+            except KeyboardInterrupt:
+                print("\nExiting chat...")
+                break
+            except Exception as e:
+                logging.error(f"Error in chat: {str(e)}")
+                print("\nAn error occurred. Please try again.")
+
+        # Save chat history if specified
+        if args.save_history and chat_history:
+            try:
+                with open(args.save_history, "w") as f:
+                    json.dump(chat_history, f, indent=2)
+                logging.info(f"Saved chat history to {args.save_history}")
+            except Exception as e:
+                logging.error(f"Error saving chat history: {str(e)}")
+
+    # Single message mode
+    elif args.message:
+        response, _ = analyzer.chat(args.message, args.system_message, chat_history)
+        if response:
+            print(response)
+        else:
+            logging.error("Failed to get response")
+            return 1
+
+    # No message or interactive mode specified
+    else:
+        logging.error(
+            "Either --message or --interactive must be specified for chat mode"
+        )
+        return 1
 
     return 0
 
