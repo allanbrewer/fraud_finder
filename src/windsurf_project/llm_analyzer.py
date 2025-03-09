@@ -348,18 +348,20 @@ class LLMAnalyzer:
         system_message=None,
         description=None,
         memory_query=None,
+        user_id="default_user",
     ):
         """
         Analyze CSV file using LLM
 
         Args:
             csv_file: Path to CSV file
-            custom_prompt: Custom prompt to use instead of default
+            custom_prompt: Custom prompt to use
             max_rows: Maximum number of rows to include
             output_file: Path to save output JSON
             system_message: Optional system message to include
             description: Optional description to include in the system message
             memory_query: Optional query to use for retrieving memories
+            user_id: User ID for memory operations (default: default_user)
 
         Returns:
             Analysis results as JSON object
@@ -374,7 +376,7 @@ class LLMAnalyzer:
 
         # Create system message with description and memories if available
         final_system_message = self.create_system_message_with_memories(
-            description, memory_query
+            description, memory_query, user_id
         )
         if system_message:
             final_system_message = f"{final_system_message}\n\n{system_message}"
@@ -455,6 +457,7 @@ class LLMAnalyzer:
         system_message=None,
         description=None,
         memory_query=None,
+        user_id="default_user",
     ):
         """
         Analyze multiple CSV files
@@ -467,6 +470,7 @@ class LLMAnalyzer:
             system_message: Optional system message to include
             description: Optional description to include in the system message
             memory_query: Optional query to use for retrieving memories
+            user_id: User ID for memory operations (default: default_user)
 
         Returns:
             Dictionary of results by filename
@@ -495,6 +499,7 @@ class LLMAnalyzer:
                 system_message,
                 description,
                 memory_query,
+                user_id,
             )
 
             if result:
@@ -502,7 +507,9 @@ class LLMAnalyzer:
 
         return results
 
-    def chat(self, user_input, system_message=None, chat_history=None):
+    def chat(
+        self, user_input, system_message=None, chat_history=None, user_id="default_user"
+    ):
         """
         Chat with the LLM
 
@@ -510,6 +517,7 @@ class LLMAnalyzer:
             user_input: User message
             system_message: Optional system message
             chat_history: Optional chat history
+            user_id: User ID for memory operations (default: default_user)
 
         Returns:
             Tuple of (response_text, updated_chat_history)
@@ -527,7 +535,7 @@ class LLMAnalyzer:
             try:
                 # Search for relevant memories
                 relevant_memories = self.memory.search(
-                    query=user_input, user_id="default_user", limit=5
+                    query=user_input, user_id=user_id, limit=5
                 )
                 if (
                     relevant_memories
@@ -578,13 +586,13 @@ class LLMAnalyzer:
 
         return response_text, chat_history
 
-    def add_memory(self, content, user_id=None, metadata=None):
+    def add_memory(self, content, user_id="default_user", metadata=None):
         """
         Add a memory to the memory system
 
         Args:
             content: Memory content
-            user_id: Optional user ID
+            user_id: User ID for memory operations (default: default_user)
             metadata: Optional metadata
 
         Returns:
@@ -599,22 +607,23 @@ class LLMAnalyzer:
             memory_data = [{"role": "user", "content": content}]
 
             # Add memory using the mem0 API
-            self.memory.add(
-                memory_data, user_id=user_id or "default_user", metadata=metadata or {}
-            )
-            logging.info(f"Added memory: {content}")
+            self.memory.add(memory_data, user_id=user_id, metadata=metadata or {})
+            logging.info(f"Added memory for user {user_id}: {content}")
             return True
         except Exception as e:
             logging.error(f"Error adding memory: {str(e)}")
             return False
 
-    def create_system_message_with_memories(self, description=None, query=None):
+    def create_system_message_with_memories(
+        self, description=None, query=None, user_id="default_user"
+    ):
         """
         Create a system message with relevant memories
 
         Args:
             description: Optional description to include in system message
             query: Optional query to use for retrieving memories
+            user_id: User ID for memory operations (default: default_user)
 
         Returns:
             System message with memories
@@ -629,7 +638,7 @@ class LLMAnalyzer:
             try:
                 # Search for relevant memories (using search instead of retrieve)
                 relevant_memories = self.memory.search(
-                    query=query, user_id="default_user", limit=5
+                    query=query, user_id=user_id, limit=5
                 )
                 if (
                     relevant_memories
@@ -688,7 +697,7 @@ def main():
     )
     analyze_parser.add_argument(
         "--system-message",
-        default=None,
+        default="You are an expert contract analyst for the Department of Government Efficiency (DOGE).",
         help="System message to include in API call",
     )
     analyze_parser.add_argument(
@@ -705,24 +714,24 @@ def main():
     # Chat mode
     chat_parser = subparsers.add_parser("chat", help="Chat with the LLM")
     chat_parser.add_argument(
-        "--interactive",
-        action="store_true",
-        help="Start an interactive chat session",
-    )
-    chat_parser.add_argument(
         "--message",
         default=None,
-        help="Single message to send to the LLM (non-interactive mode)",
+        help="Message to send to the LLM (non-interactive mode)",
     )
     chat_parser.add_argument(
-        "--system-message",
-        default="You are an expert contract analyst for the Department of Government Efficiency (DOGE) as of 2025.",
-        help="System message to include in API call",
+        "--interactive",
+        action="store_true",
+        help="Start interactive chat session",
     )
     chat_parser.add_argument(
         "--save-history",
         default=None,
         help="File to save chat history to",
+    )
+    chat_parser.add_argument(
+        "--system-message",
+        default="You are an expert contract analyst for the Department of Government Efficiency (DOGE).",
+        help="System message to include in API call",
     )
     chat_parser.add_argument(
         "--load-history",
@@ -741,12 +750,7 @@ def main():
         subparser.add_argument(
             "--model",
             default=None,
-            help="Model name to use (default depends on provider)",
-        )
-        subparser.add_argument(
-            "--api-key",
-            default=None,
-            help="API key (default: read from .env file)",
+            help="Model name to use (default: provider-specific default)",
         )
         subparser.add_argument(
             "--max-tokens",
@@ -759,6 +763,16 @@ def main():
             type=float,
             default=0.1,
             help="Temperature for response generation (default: 0.1)",
+        )
+        subparser.add_argument(
+            "--user-id",
+            default="default_user",
+            help="User ID for memory operations (default: default_user)",
+        )
+        subparser.add_argument(
+            "--api-key",
+            default=None,
+            help="API key (default: read from .env file)",
         )
 
     args = parser.parse_args()
@@ -829,6 +843,7 @@ def handle_analyze_mode(args, analyzer):
             args.system_message,
             args.description,
             args.memory_query,
+            args.user_id,
         )
 
         # Save summary
@@ -864,6 +879,7 @@ def handle_analyze_mode(args, analyzer):
             args.system_message,
             args.description,
             args.memory_query,
+            args.user_id,
         )
 
         if result:
@@ -920,7 +936,7 @@ def handle_chat_mode(args, analyzer):
                 if user_input.lower().startswith("memory:"):
                     memory_content = user_input[7:].strip()
                     if memory_content:
-                        success = analyzer.add_memory(memory_content)
+                        success = analyzer.add_memory(memory_content, args.user_id)
                         if success:
                             print(f"Memory added: {memory_content}")
                         else:
@@ -933,7 +949,7 @@ def handle_chat_mode(args, analyzer):
 
                 # Get response
                 response, chat_history = analyzer.chat(
-                    user_input, args.system_message, chat_history
+                    user_input, args.system_message, chat_history, args.user_id
                 )
 
                 if response:
@@ -959,7 +975,9 @@ def handle_chat_mode(args, analyzer):
 
     # Single message mode
     elif args.message:
-        response, _ = analyzer.chat(args.message, args.system_message, chat_history)
+        response, _ = analyzer.chat(
+            args.message, args.system_message, chat_history, args.user_id
+        )
         if response:
             print(response)
         else:
