@@ -45,6 +45,7 @@ class LLMAnalyzer:
         provider="xai",
         max_tokens=4096,
         temperature=0.1,
+        user_id="default_user",
     ):
         """
         Initialize the LLM analyzer
@@ -55,10 +56,12 @@ class LLMAnalyzer:
             provider: LLM provider (openai, anthropic, xai)
             max_tokens: Maximum tokens for response
             temperature: Temperature for response generation
+            user_id: User ID for memory operations (default: default_user)
         """
         self.provider = provider.lower()
         self.max_tokens = max_tokens
         self.temperature = temperature
+        self.user_id = user_id
 
         # Set default model based on provider
         if model is None:
@@ -101,12 +104,22 @@ class LLMAnalyzer:
                             "temperature": self.temperature,
                             "max_tokens": self.max_tokens,
                         },
+                    },
+                    # Use the default mem0 storage configuration with a custom collection name
+                    "vector_store": {
+                        "provider": "chroma",
+                        "config": {
+                            "collection_name": f"fraud_finder_{self.user_id}",
+                        }
                     }
                 }
+                
                 self.memory = Memory.from_config(config)
-                logging.info(f"Memory initialized with provider {mem_provider}")
+                logging.info(f"Memory initialized with provider {mem_provider} using default storage location at ~/.mem0 for user '{self.user_id}'")
             except Exception as e:
                 logging.warning(f"Failed to initialize memory: {str(e)}")
+                import traceback
+                logging.warning(traceback.format_exc())
                 self.memory = None
         else:
             logging.warning(f"Memory not supported for provider {self.provider}")
@@ -348,7 +361,6 @@ class LLMAnalyzer:
         system_message=None,
         description=None,
         memory_query=None,
-        user_id="default_user",
     ):
         """
         Analyze CSV file using LLM
@@ -361,7 +373,6 @@ class LLMAnalyzer:
             system_message: Optional system message to include
             description: Optional description to include in the system message
             memory_query: Optional query to use for retrieving memories
-            user_id: User ID for memory operations (default: default_user)
 
         Returns:
             Analysis results as JSON object
@@ -376,7 +387,7 @@ class LLMAnalyzer:
 
         # Create system message with description and memories if available
         final_system_message = self.create_system_message_with_memories(
-            description, memory_query, user_id
+            description, memory_query
         )
         if system_message:
             final_system_message = f"{final_system_message}\n\n{system_message}"
@@ -388,9 +399,7 @@ class LLMAnalyzer:
         if self.provider == "openai":
             response_text = self.call_openai_api(complete_prompt, final_system_message)
         elif self.provider == "anthropic":
-            response_text = self.call_anthropic_api(
-                complete_prompt, final_system_message
-            )
+            response_text = self.call_anthropic_api(complete_prompt, final_system_message)
         elif self.provider == "xai":
             response_text = self.call_xai_api(complete_prompt, final_system_message)
         else:
@@ -457,7 +466,6 @@ class LLMAnalyzer:
         system_message=None,
         description=None,
         memory_query=None,
-        user_id="default_user",
     ):
         """
         Analyze multiple CSV files
@@ -470,7 +478,6 @@ class LLMAnalyzer:
             system_message: Optional system message to include
             description: Optional description to include in the system message
             memory_query: Optional query to use for retrieving memories
-            user_id: User ID for memory operations (default: default_user)
 
         Returns:
             Dictionary of results by filename
@@ -488,7 +495,8 @@ class LLMAnalyzer:
             output_file = None
             if output_dir:
                 output_file = os.path.join(
-                    output_dir, f"analysis_{os.path.splitext(filename)[0]}.json"
+                    output_dir,
+                    f"analysis_{os.path.splitext(filename)[0]}.json",
                 )
 
             result = self.analyze_csv(
@@ -499,7 +507,6 @@ class LLMAnalyzer:
                 system_message,
                 description,
                 memory_query,
-                user_id,
             )
 
             if result:
@@ -508,7 +515,7 @@ class LLMAnalyzer:
         return results
 
     def chat(
-        self, user_input, system_message=None, chat_history=None, user_id="default_user"
+        self, user_input, system_message=None, chat_history=None
     ):
         """
         Chat with the LLM
@@ -517,7 +524,6 @@ class LLMAnalyzer:
             user_input: User message
             system_message: Optional system message
             chat_history: Optional chat history
-            user_id: User ID for memory operations (default: default_user)
 
         Returns:
             Tuple of (response_text, updated_chat_history)
@@ -526,17 +532,32 @@ class LLMAnalyzer:
         if chat_history is None:
             chat_history = []
 
+        # Check if this is a memory command
+        if user_input.lower().startswith("memory:"):
+            memory_content = user_input[7:].strip()
+            success = self.add_memory(memory_content)
+            if success:
+                return f"Memory added: {memory_content}", chat_history
+            else:
+                return "Failed to add memory.", chat_history
+
         # Add user message to chat history
         chat_history.append({"role": "user", "content": user_input})
 
         # Create system message with memories if available
         final_system_message = system_message
-        if system_message and hasattr(self, "memory") and self.memory is not None:
+        if hasattr(self, "memory") and self.memory is not None:
             try:
-                # Search for relevant memories
+                # Search for relevant memories with the actual query
+                # (Skip the empty query search that was causing the 400 error)
+                logging.info(f"Searching for memories with query: '{user_input}' for user: '{self.user_id}'")
                 relevant_memories = self.memory.search(
-                    query=user_input, user_id=user_id, limit=5
+                    query=user_input, user_id=self.user_id, limit=5
                 )
+                
+                # Log the raw memory results for debugging
+                logging.info(f"Memory search results: {relevant_memories}")
+                
                 if (
                     relevant_memories
                     and "results" in relevant_memories
@@ -548,14 +569,21 @@ class LLMAnalyzer:
                             for entry in relevant_memories["results"]
                         ]
                     )
-                    final_system_message = (
-                        f"{system_message}\n\nRelevant information:\n{memory_text}"
-                    )
+                    
+                    if final_system_message:
+                        final_system_message = (
+                            f"{system_message}\n\nRelevant information:\n{memory_text}"
+                        )
+                    else:
+                        final_system_message = f"You are a helpful assistant. Consider this relevant information:\n{memory_text}"
+                        
                     logging.info(
                         f"Added {len(relevant_memories['results'])} memories to system message"
                     )
             except Exception as e:
                 logging.warning(f"Error retrieving memories: {str(e)}")
+                import traceback
+                logging.warning(traceback.format_exc())
 
         # Call appropriate API based on provider
         logging.info(
@@ -573,26 +601,25 @@ class LLMAnalyzer:
             response_text = self.call_xai_api("", final_system_message, chat_history)
         else:
             logging.error(f"Unknown provider: {self.provider}")
-            return None
+            return None, chat_history
 
         elapsed_time = time.time() - start_time
         logging.info(f"API call completed in {elapsed_time:.2f} seconds")
 
         if not response_text:
-            return None
+            return None, chat_history
 
         # Add assistant response to chat history
         chat_history.append({"role": "assistant", "content": response_text})
 
         return response_text, chat_history
 
-    def add_memory(self, content, user_id="default_user", metadata=None):
+    def add_memory(self, content, metadata=None):
         """
         Add a memory to the memory system
 
         Args:
             content: Memory content
-            user_id: User ID for memory operations (default: default_user)
             metadata: Optional metadata
 
         Returns:
@@ -603,19 +630,24 @@ class LLMAnalyzer:
             return False
 
         try:
-            # Create a simple message format for the memory
-            memory_data = [{"role": "user", "content": content}]
-
-            # Add memory using the mem0 API
-            self.memory.add(memory_data, user_id=user_id, metadata=metadata or {})
-            logging.info(f"Added memory for user {user_id}: {content}")
+            # Log memory addition attempt
+            logging.info(f"Attempting to add memory for user '{self.user_id}': {content}")
+            
+            # Add memory directly as a string - this is the format that works best with mem0
+            result = self.memory.add(content, user_id=self.user_id, metadata=metadata or {})
+            logging.info(f"Added memory using string format: {result}")
+            
+            # Don't try to list all memories as it causes a 400 error with empty query
+            logging.info(f"Successfully added memory for user {self.user_id}: {content}")
             return True
         except Exception as e:
             logging.error(f"Error adding memory: {str(e)}")
+            import traceback
+            logging.error(traceback.format_exc())
             return False
 
     def create_system_message_with_memories(
-        self, description=None, query=None, user_id="default_user"
+        self, description=None, query=None
     ):
         """
         Create a system message with relevant memories
@@ -623,7 +655,6 @@ class LLMAnalyzer:
         Args:
             description: Optional description to include in system message
             query: Optional query to use for retrieving memories
-            user_id: User ID for memory operations (default: default_user)
 
         Returns:
             System message with memories
@@ -636,10 +667,13 @@ class LLMAnalyzer:
         # Add memories if available
         if hasattr(self, "memory") and self.memory is not None and query:
             try:
-                # Search for relevant memories (using search instead of retrieve)
+                # Search for relevant memories with the actual query
+                logging.info(f"Searching for memories with query: '{query}' for user: '{self.user_id}'")
                 relevant_memories = self.memory.search(
-                    query=query, user_id=user_id, limit=5
+                    query=query, user_id=self.user_id, limit=5
                 )
+                logging.info(f"Memory search results: {relevant_memories}")
+                
                 if (
                     relevant_memories
                     and "results" in relevant_memories
@@ -659,6 +693,8 @@ class LLMAnalyzer:
                     )
             except Exception as e:
                 logging.warning(f"Error retrieving memories: {str(e)}")
+                import traceback
+                logging.warning(traceback.format_exc())
 
         return base_message
 
@@ -790,6 +826,7 @@ def main():
             provider=args.provider,
             max_tokens=args.max_tokens,
             temperature=args.temperature,
+            user_id=args.user_id,
         )
     except ValueError as e:
         logging.error(str(e))
@@ -843,7 +880,6 @@ def handle_analyze_mode(args, analyzer):
             args.system_message,
             args.description,
             args.memory_query,
-            args.user_id,
         )
 
         # Save summary
@@ -879,7 +915,6 @@ def handle_analyze_mode(args, analyzer):
             args.system_message,
             args.description,
             args.memory_query,
-            args.user_id,
         )
 
         if result:
@@ -936,7 +971,7 @@ def handle_chat_mode(args, analyzer):
                 if user_input.lower().startswith("memory:"):
                     memory_content = user_input[7:].strip()
                     if memory_content:
-                        success = analyzer.add_memory(memory_content, args.user_id)
+                        success = analyzer.add_memory(memory_content)
                         if success:
                             print(f"Memory added: {memory_content}")
                         else:
@@ -949,7 +984,7 @@ def handle_chat_mode(args, analyzer):
 
                 # Get response
                 response, chat_history = analyzer.chat(
-                    user_input, args.system_message, chat_history, args.user_id
+                    user_input, args.system_message, chat_history
                 )
 
                 if response:
@@ -976,7 +1011,7 @@ def handle_chat_mode(args, analyzer):
     # Single message mode
     elif args.message:
         response, _ = analyzer.chat(
-            args.message, args.system_message, chat_history, args.user_id
+            args.message, args.system_message, chat_history
         )
         if response:
             print(response)
