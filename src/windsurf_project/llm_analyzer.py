@@ -21,18 +21,33 @@ logging.basicConfig(
 
 # Import the prompt from promt.py
 try:
-    from promt import prompt
-
-    logging.info("Successfully imported prompt from promt.py")
+    from promt import dei_prompt, ngo_fraud_prompt
+    
+    # Create a dictionary of available prompts
+    available_prompts = {
+        "dei": dei_prompt,
+        "ngo_fraud": ngo_fraud_prompt
+    }
+    
+    logging.info(f"Successfully imported prompts from promt.py: {', '.join(available_prompts.keys())}")
 except ImportError:
     try:
         # Try relative import if the first import fails
-        from .promt import prompt
-
-        logging.info("Successfully imported prompt from promt.py")
+        from .promt import dei_prompt, ngo_fraud_prompt
+        
+        # Create a dictionary of available prompts
+        available_prompts = {
+            "dei": dei_prompt,
+            "ngo_fraud": ngo_fraud_prompt
+        }
+        
+        logging.info(f"Successfully imported prompts from promt.py: {', '.join(available_prompts.keys())}")
     except ImportError:
-        logging.error("Could not import prompt from promt.py")
-        prompt = None
+        logging.error("Could not import prompts from promt.py")
+        available_prompts = {}
+
+# Set default prompt
+default_prompt = dei_prompt if 'dei' in available_prompts else None
 
 
 class LLMAnalyzer:
@@ -156,19 +171,26 @@ class LLMAnalyzer:
             logging.error(f"Error preparing CSV data: {str(e)}")
             return None, 0
 
-    def create_prompt_with_data(self, csv_data, custom_prompt=None):
+    def create_prompt_with_data(self, csv_data, custom_prompt=None, prompt_type="dei"):
         """
-        Create a prompt with CSV data
+        Create prompt with CSV data
 
         Args:
-            csv_data: CSV data as string
-            custom_prompt: Custom prompt to use instead of default
+            csv_data: CSV data to include in prompt
+            custom_prompt: Custom prompt to use
+            prompt_type: Type of prompt to use (default: dei)
 
         Returns:
             Complete prompt with CSV data
         """
-        # Use custom prompt if provided, otherwise use default
-        final_prompt = custom_prompt if custom_prompt else prompt
+        # Use custom prompt if provided, otherwise use selected prompt type
+        if custom_prompt:
+            final_prompt = custom_prompt
+        elif prompt_type in available_prompts:
+            final_prompt = available_prompts[prompt_type]
+        else:
+            final_prompt = default_prompt
+            logging.warning(f"Prompt type '{prompt_type}' not found, using default prompt")
 
         # Add CSV data to prompt
         complete_prompt = (
@@ -361,6 +383,7 @@ class LLMAnalyzer:
         system_message=None,
         description=None,
         memory_query=None,
+        prompt_type="dei"
     ):
         """
         Analyze CSV file using LLM
@@ -373,6 +396,7 @@ class LLMAnalyzer:
             system_message: Optional system message to include
             description: Optional description to include in the system message
             memory_query: Optional query to use for retrieving memories
+            prompt_type: Type of prompt to use (default: dei)
 
         Returns:
             Analysis results as JSON object
@@ -383,7 +407,7 @@ class LLMAnalyzer:
             return None
 
         # Create complete prompt
-        complete_prompt = self.create_prompt_with_data(csv_data, custom_prompt)
+        complete_prompt = self.create_prompt_with_data(csv_data, custom_prompt, prompt_type)
 
         # Create system message with description and memories if available
         final_system_message = self.create_system_message_with_memories(
@@ -466,6 +490,7 @@ class LLMAnalyzer:
         system_message=None,
         description=None,
         memory_query=None,
+        prompt_type="dei"
     ):
         """
         Analyze multiple CSV files
@@ -478,6 +503,7 @@ class LLMAnalyzer:
             system_message: Optional system message to include
             description: Optional description to include in the system message
             memory_query: Optional query to use for retrieving memories
+            prompt_type: Type of prompt to use (default: dei)
 
         Returns:
             Dictionary of results by filename
@@ -507,6 +533,7 @@ class LLMAnalyzer:
                 system_message,
                 description,
                 memory_query,
+                prompt_type
             )
 
             if result:
@@ -727,6 +754,12 @@ def main():
         help="Directory to save output files (default: llm_analysis)",
     )
     analyze_parser.add_argument(
+        "--prompt-type",
+        default="dei",
+        choices=["dei", "ngo_fraud"],
+        help="Type of prompt to use (default: dei)",
+    )
+    analyze_parser.add_argument(
         "--prompt-file",
         default=None,
         help="Custom prompt file (default: use built-in prompt)",
@@ -880,6 +913,7 @@ def handle_analyze_mode(args, analyzer):
             args.system_message,
             args.description,
             args.memory_query,
+            args.prompt_type
         )
 
         # Save summary
@@ -915,6 +949,7 @@ def handle_analyze_mode(args, analyzer):
             args.system_message,
             args.description,
             args.memory_query,
+            args.prompt_type
         )
 
         if result:
