@@ -19,36 +19,33 @@ from grok_client import GrokClient
 # Import mem0 for memory support
 from mem0 import Memory
 
-# Import prompts from promt.py
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Import prompts from prompt.py
 try:
-    from promt import dei_prompt, ngo_fraud_prompt
+    from prompt import dei_prompt, ngo_fraud_prompt
 
     # Create a dictionary of available prompts
     available_prompts = {"dei": dei_prompt, "ngo_fraud": ngo_fraud_prompt}
 
-    logging.info(
-        f"Successfully imported prompts from promt.py: {', '.join(available_prompts.keys())}"
+    logger.info(
+        f"Successfully imported prompts from prompt.py: {', '.join(available_prompts.keys())}"
     )
 except ImportError:
     try:
         # Try relative import if the first import fails
-        from .promt import dei_prompt, ngo_fraud_prompt
+        from .prompt import dei_prompt, ngo_fraud_prompt
 
         # Create a dictionary of available prompts
         available_prompts = {"dei": dei_prompt, "ngo_fraud": ngo_fraud_prompt}
 
-        logging.info(
-            f"Successfully imported prompts from promt.py: {', '.join(available_prompts.keys())}"
+        logger.info(
+            f"Successfully imported prompts from prompt.py: {', '.join(available_prompts.keys())}"
         )
     except ImportError:
-        logging.error("Could not import prompts from promt.py")
+        logger.error("Could not import prompts from prompt.py")
         available_prompts = {}
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
 
 
 class Grok3Chat:
@@ -85,7 +82,7 @@ class Grok3Chat:
             cookies = os.environ.get("XAI_COOKIES")
             if not cookies:
                 raise ValueError("XAI_COOKIES environment variable not set")
-        
+
         # Parse cookies string into a dict for GrokClient
         try:
             # Parse the cookie string into a dictionary
@@ -94,12 +91,12 @@ class Grok3Chat:
                 if "=" in cookie:
                     name, value = cookie.strip().split("=", 1)
                     cookie_dict[name] = value
-            
+
             # Initialize the GrokClient
             self.grok_client = GrokClient(cookie_dict)
-            logging.info("GrokClient initialized successfully")
+            logger.info("GrokClient initialized successfully")
         except Exception as e:
-            logging.error(f"Failed to initialize GrokClient: {str(e)}")
+            logger.error(f"Failed to initialize GrokClient: {str(e)}")
             raise
 
         # Initialize Memory
@@ -123,14 +120,14 @@ class Grok3Chat:
             }
 
             self.memory = Memory.from_config(config)
-            logging.info(
+            logger.info(
                 f"Memory initialized for user '{self.user_id}' using default storage location at ~/.mem0"
             )
         except Exception as e:
-            logging.warning(f"Failed to initialize memory: {str(e)}")
+            logger.warning(f"Failed to initialize memory: {str(e)}")
             import traceback
 
-            logging.warning(traceback.format_exc())
+            logger.warning(traceback.format_exc())
             self.memory = None
 
     def chat(
@@ -184,7 +181,7 @@ class Grok3Chat:
         if self.memory is not None:
             try:
                 # Search for relevant memories
-                logging.info(
+                logger.info(
                     f"Searching for memories with query: '{user_input}' for user: '{self.user_id}'"
                 )
                 relevant_memories = self.memory.search(
@@ -192,7 +189,7 @@ class Grok3Chat:
                 )
 
                 # Log the memory results for debugging
-                logging.info(f"Memory search results: {relevant_memories}")
+                logger.info(f"Memory search results: {relevant_memories}")
 
                 if (
                     relevant_memories
@@ -207,17 +204,17 @@ class Grok3Chat:
                     )
 
                     final_system_message = f"{final_system_message}\n\nRelevant information:\n{memory_text}"
-                    logging.info(
+                    logger.info(
                         f"Added {len(relevant_memories['results'])} memories to system message"
                     )
             except Exception as e:
-                logging.warning(f"Error retrieving memories: {str(e)}")
+                logger.warning(f"Error retrieving memories: {str(e)}")
                 import traceback
 
-                logging.warning(traceback.format_exc())
+                logger.warning(traceback.format_exc())
 
         # Call Grok3 API
-        logging.info("Sending request to Grok3 API")
+        logger.info("Sending request to Grok3 API")
         start_time = time.time()
 
         try:
@@ -243,30 +240,32 @@ class Grok3Chat:
                     combined_prompt += f"User: {content}\n\n"
                 elif role == "assistant":
                     combined_prompt += f"Assistant: {content}\n\n"
-            
+
             # Add the final user message if not already included
-            if combined_prompt and not combined_prompt.endswith(f"User: {user_input}\n\n"):
+            if combined_prompt and not combined_prompt.endswith(
+                f"User: {user_input}\n\n"
+            ):
                 combined_prompt += f"User: {user_input}\n\n"
-            
+
             # If no messages, just use the user input
             if not combined_prompt:
                 combined_prompt = user_input
 
             # Call the GrokClient send_message method
-            logging.info(f"Sending message to Grok3: {combined_prompt[:100]}...")
+            logger.info(f"Sending message to Grok3: {combined_prompt[:100]}...")
             response_text = self.grok_client.send_message(combined_prompt)
 
             elapsed_time = time.time() - start_time
-            logging.info(f"API call completed in {elapsed_time:.2f} seconds")
+            logger.info(f"API call completed in {elapsed_time:.2f} seconds")
 
             if not response_text:
-                logging.error("Empty response from Grok3 API")
+                logger.error("Empty response from Grok3 API")
                 return None, chat_history
         except Exception as e:
-            logging.error(f"Error calling Grok3 API: {str(e)}")
+            logger.error(f"Error calling Grok3 API: {str(e)}")
             import traceback
 
-            logging.error(traceback.format_exc())
+            logger.error(traceback.format_exc())
             return None, chat_history
 
         # Add assistant response to chat history
@@ -288,12 +287,12 @@ class Grok3Chat:
             True if memory was added, False otherwise
         """
         if self.memory is None:
-            logging.warning("Memory not initialized")
+            logger.warning("Memory not initialized")
             return False
 
         try:
             # Log memory addition attempt
-            logging.info(
+            logger.info(
                 f"Attempting to add memory for user '{self.user_id}': {content}"
             )
 
@@ -301,17 +300,15 @@ class Grok3Chat:
             result = self.memory.add(
                 content, user_id=self.user_id, metadata=metadata or {}
             )
-            logging.info(f"Added memory using string format: {result}")
+            logger.info(f"Added memory using string format: {result}")
 
-            logging.info(
-                f"Successfully added memory for user {self.user_id}: {content}"
-            )
+            logger.info(f"Successfully added memory for user {self.user_id}: {content}")
             return True
         except Exception as e:
-            logging.error(f"Error adding memory: {str(e)}")
+            logger.error(f"Error adding memory: {str(e)}")
             import traceback
 
-            logging.error(traceback.format_exc())
+            logger.error(traceback.format_exc())
             return False
 
 
@@ -405,7 +402,7 @@ def handle_interactive_mode(chat, args):
             print("\nExiting...")
             break
         except Exception as e:
-            logging.error(f"Error: {str(e)}")
+            logger.error(f"Error: {str(e)}")
             print(f"\nAn error occurred: {str(e)}\n")
 
     # Save conversation if requested
@@ -447,7 +444,7 @@ def main():
             sys.exit(1)
 
     except Exception as e:
-        logging.error(f"Error: {str(e)}")
+        logger.error(f"Error: {str(e)}")
         print(f"An error occurred: {str(e)}")
         sys.exit(1)
 

@@ -15,39 +15,35 @@ from mem0 import Memory
 load_dotenv()
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logger = logging.getLogger(__name__)
 
-# Import the prompt from promt.py
+# Import the prompt from prompt.py
 try:
-    from promt import dei_prompt, ngo_fraud_prompt
-    
+    from prompt import dei_prompt, ngo_fraud_prompt
+
     # Create a dictionary of available prompts
-    available_prompts = {
-        "dei": dei_prompt,
-        "ngo_fraud": ngo_fraud_prompt
-    }
-    
-    logging.info(f"Successfully imported prompts from promt.py: {', '.join(available_prompts.keys())}")
+    available_prompts = {"dei": dei_prompt, "ngo_fraud": ngo_fraud_prompt}
+
+    logger.info(
+        f"Successfully imported prompts from prompt.py: {', '.join(available_prompts.keys())}"
+    )
 except ImportError:
     try:
         # Try relative import if the first import fails
-        from .promt import dei_prompt, ngo_fraud_prompt
-        
+        from .prompt import dei_prompt, ngo_fraud_prompt
+
         # Create a dictionary of available prompts
-        available_prompts = {
-            "dei": dei_prompt,
-            "ngo_fraud": ngo_fraud_prompt
-        }
-        
-        logging.info(f"Successfully imported prompts from promt.py: {', '.join(available_prompts.keys())}")
+        available_prompts = {"dei": dei_prompt, "ngo_fraud": ngo_fraud_prompt}
+
+        logger.info(
+            f"Successfully imported prompts from prompt.py: {', '.join(available_prompts.keys())}"
+        )
     except ImportError:
-        logging.error("Could not import prompts from promt.py")
+        logger.error("Could not import prompts from prompt.py")
         available_prompts = {}
 
 # Set default prompt
-default_prompt = dei_prompt if 'dei' in available_prompts else None
+default_prompt = dei_prompt if "dei" in available_prompts else None
 
 
 class LLMAnalyzer:
@@ -125,19 +121,22 @@ class LLMAnalyzer:
                         "provider": "chroma",
                         "config": {
                             "collection_name": f"fraud_finder_{self.user_id}",
-                        }
-                    }
+                        },
+                    },
                 }
-                
+
                 self.memory = Memory.from_config(config)
-                logging.info(f"Memory initialized with provider {mem_provider} using default storage location at ~/.mem0 for user '{self.user_id}'")
+                logger.info(
+                    f"Memory initialized with provider {mem_provider} using default storage location at ~/.mem0 for user '{self.user_id}'"
+                )
             except Exception as e:
-                logging.warning(f"Failed to initialize memory: {str(e)}")
+                logger.warning(f"Failed to initialize memory: {str(e)}")
                 import traceback
-                logging.warning(traceback.format_exc())
+
+                logger.warning(traceback.format_exc())
                 self.memory = None
         else:
-            logging.warning(f"Memory not supported for provider {self.provider}")
+            logger.warning(f"Memory not supported for provider {self.provider}")
             self.memory = None
 
     def prepare_csv_data(self, csv_file, max_rows=None):
@@ -154,11 +153,11 @@ class LLMAnalyzer:
         try:
             df = pd.read_csv(csv_file)
             total_rows = len(df)
-            logging.info(f"CSV file contains {total_rows} rows")
+            logger.info(f"CSV file contains {total_rows} rows")
 
             # Limit rows if specified
             if max_rows and len(df) > max_rows:
-                logging.warning(
+                logger.warning(
                     f"CSV file has {total_rows} rows, limiting to {max_rows} rows"
                 )
                 df = df.head(max_rows)
@@ -168,7 +167,7 @@ class LLMAnalyzer:
             return csv_string, total_rows
 
         except Exception as e:
-            logging.error(f"Error preparing CSV data: {str(e)}")
+            logger.error(f"Error preparing CSV data: {str(e)}")
             return None, 0
 
     def create_prompt_with_data(self, csv_data, custom_prompt=None, prompt_type="dei"):
@@ -190,7 +189,9 @@ class LLMAnalyzer:
             final_prompt = available_prompts[prompt_type]
         else:
             final_prompt = default_prompt
-            logging.warning(f"Prompt type '{prompt_type}' not found, using default prompt")
+            logger.warning(
+                f"Prompt type '{prompt_type}' not found, using default prompt"
+            )
 
         # Add CSV data to prompt
         complete_prompt = (
@@ -252,10 +253,10 @@ class LLMAnalyzer:
             return result["choices"][0]["message"]["content"]
 
         except requests.exceptions.RequestException as e:
-            logging.error(f"Error calling OpenAI API: {str(e)}")
+            logger.error(f"Error calling OpenAI API: {str(e)}")
             if hasattr(e, "response") and e.response is not None:
-                logging.error(f"Response status: {e.response.status_code}")
-                logging.error(f"Response body: {e.response.text}")
+                logger.error(f"Response status: {e.response.status_code}")
+                logger.error(f"Response body: {e.response.text}")
             return None
 
     def call_anthropic_api(
@@ -309,10 +310,10 @@ class LLMAnalyzer:
             return result["content"][0]["text"]
 
         except requests.exceptions.RequestException as e:
-            logging.error(f"Error calling Anthropic API: {str(e)}")
+            logger.error(f"Error calling Anthropic API: {str(e)}")
             if hasattr(e, "response") and e.response is not None:
-                logging.error(f"Response status: {e.response.status_code}")
-                logging.error(f"Response body: {e.response.text}")
+                logger.error(f"Response status: {e.response.status_code}")
+                logger.error(f"Response body: {e.response.text}")
             return None
 
     def call_xai_api(self, complete_prompt, system_message=None, chat_history=None):
@@ -368,10 +369,10 @@ class LLMAnalyzer:
             return result["choices"][0]["message"]["content"]
 
         except requests.exceptions.RequestException as e:
-            logging.error(f"Error calling Xai API: {str(e)}")
+            logger.error(f"Error calling Xai API: {str(e)}")
             if hasattr(e, "response") and e.response is not None:
-                logging.error(f"Response status: {e.response.status_code}")
-                logging.error(f"Response body: {e.response.text}")
+                logger.error(f"Response status: {e.response.status_code}")
+                logger.error(f"Response body: {e.response.text}")
             return None
 
     def analyze_csv(
@@ -383,7 +384,7 @@ class LLMAnalyzer:
         system_message=None,
         description=None,
         memory_query=None,
-        prompt_type="dei"
+        prompt_type="dei",
     ):
         """
         Analyze CSV file using LLM
@@ -407,7 +408,9 @@ class LLMAnalyzer:
             return None
 
         # Create complete prompt
-        complete_prompt = self.create_prompt_with_data(csv_data, custom_prompt, prompt_type)
+        complete_prompt = self.create_prompt_with_data(
+            csv_data, custom_prompt, prompt_type
+        )
 
         # Create system message with description and memories if available
         final_system_message = self.create_system_message_with_memories(
@@ -417,21 +420,23 @@ class LLMAnalyzer:
             final_system_message = f"{final_system_message}\n\n{system_message}"
 
         # Call appropriate API based on provider
-        logging.info(f"Calling {self.provider.upper()} API with model {self.model}...")
+        logger.info(f"Calling {self.provider.upper()} API with model {self.model}...")
         start_time = time.time()
 
         if self.provider == "openai":
             response_text = self.call_openai_api(complete_prompt, final_system_message)
         elif self.provider == "anthropic":
-            response_text = self.call_anthropic_api(complete_prompt, final_system_message)
+            response_text = self.call_anthropic_api(
+                complete_prompt, final_system_message
+            )
         elif self.provider == "xai":
             response_text = self.call_xai_api(complete_prompt, final_system_message)
         else:
-            logging.error(f"Unknown provider: {self.provider}")
+            logger.error(f"Unknown provider: {self.provider}")
             return None
 
         elapsed_time = time.time() - start_time
-        logging.info(f"API call completed in {elapsed_time:.2f} seconds")
+        logger.info(f"API call completed in {elapsed_time:.2f} seconds")
 
         if not response_text:
             return None
@@ -442,15 +447,15 @@ class LLMAnalyzer:
 
             # Handle case where result is a list instead of a dictionary
             if isinstance(result, list):
-                logging.warning(
+                logger.warning(
                     "API returned a list instead of a dictionary. Converting to dictionary format."
                 )
                 result = {"dei_contracts": [], "doge_targets": result}
 
             # Ensure result has the expected structure
             if not isinstance(result, dict):
-                logging.error(f"Unexpected result type: {type(result)}")
-                logging.error(f"Raw response: {response_text}")
+                logger.error(f"Unexpected result type: {type(result)}")
+                logger.error(f"Raw response: {response_text}")
                 return None
 
             # Ensure the required keys exist
@@ -464,7 +469,7 @@ class LLMAnalyzer:
             doge_count = len(result.get("doge_targets", []))
             total_contracts = dei_count + doge_count
 
-            logging.info(
+            logger.info(
                 f"LLM analysis found {total_contracts} contracts: {dei_count} DEI contracts and {doge_count} DOGE targets"
             )
 
@@ -472,13 +477,13 @@ class LLMAnalyzer:
             if output_file:
                 with open(output_file, "w") as f:
                     json.dump(result, f, indent=2)
-                logging.info(f"Results saved to {output_file}")
+                logger.info(f"Results saved to {output_file}")
 
             return result
 
         except json.JSONDecodeError as e:
-            logging.error(f"Error parsing JSON response: {str(e)}")
-            logging.error(f"Raw response: {response_text}")
+            logger.error(f"Error parsing JSON response: {str(e)}")
+            logger.error(f"Raw response: {response_text}")
             return None
 
     def analyze_multiple_csv(
@@ -490,7 +495,7 @@ class LLMAnalyzer:
         system_message=None,
         description=None,
         memory_query=None,
-        prompt_type="dei"
+        prompt_type="dei",
     ):
         """
         Analyze multiple CSV files
@@ -515,7 +520,7 @@ class LLMAnalyzer:
 
         for csv_file in csv_files:
             filename = os.path.basename(csv_file)
-            logging.info(f"Analyzing {filename}...")
+            logger.info(f"Analyzing {filename}...")
 
             # Create output file path
             output_file = None
@@ -533,7 +538,7 @@ class LLMAnalyzer:
                 system_message,
                 description,
                 memory_query,
-                prompt_type
+                prompt_type,
             )
 
             if result:
@@ -541,9 +546,7 @@ class LLMAnalyzer:
 
         return results
 
-    def chat(
-        self, user_input, system_message=None, chat_history=None
-    ):
+    def chat(self, user_input, system_message=None, chat_history=None):
         """
         Chat with the LLM
 
@@ -577,14 +580,16 @@ class LLMAnalyzer:
             try:
                 # Search for relevant memories with the actual query
                 # (Skip the empty query search that was causing the 400 error)
-                logging.info(f"Searching for memories with query: '{user_input}' for user: '{self.user_id}'")
+                logger.info(
+                    f"Searching for memories with query: '{user_input}' for user: '{self.user_id}'"
+                )
                 relevant_memories = self.memory.search(
                     query=user_input, user_id=self.user_id, limit=5
                 )
-                
+
                 # Log the raw memory results for debugging
-                logging.info(f"Memory search results: {relevant_memories}")
-                
+                logger.info(f"Memory search results: {relevant_memories}")
+
                 if (
                     relevant_memories
                     and "results" in relevant_memories
@@ -596,24 +601,25 @@ class LLMAnalyzer:
                             for entry in relevant_memories["results"]
                         ]
                     )
-                    
+
                     if final_system_message:
                         final_system_message = (
                             f"{system_message}\n\nRelevant information:\n{memory_text}"
                         )
                     else:
                         final_system_message = f"You are a helpful assistant. Consider this relevant information:\n{memory_text}"
-                        
-                    logging.info(
+
+                    logger.info(
                         f"Added {len(relevant_memories['results'])} memories to system message"
                     )
             except Exception as e:
-                logging.warning(f"Error retrieving memories: {str(e)}")
+                logger.warning(f"Error retrieving memories: {str(e)}")
                 import traceback
-                logging.warning(traceback.format_exc())
+
+                logger.warning(traceback.format_exc())
 
         # Call appropriate API based on provider
-        logging.info(
+        logger.info(
             f"Calling {self.provider.upper()} API for chat with model {self.model}..."
         )
         start_time = time.time()
@@ -627,11 +633,11 @@ class LLMAnalyzer:
         elif self.provider == "xai":
             response_text = self.call_xai_api("", final_system_message, chat_history)
         else:
-            logging.error(f"Unknown provider: {self.provider}")
+            logger.error(f"Unknown provider: {self.provider}")
             return None, chat_history
 
         elapsed_time = time.time() - start_time
-        logging.info(f"API call completed in {elapsed_time:.2f} seconds")
+        logger.info(f"API call completed in {elapsed_time:.2f} seconds")
 
         if not response_text:
             return None, chat_history
@@ -653,29 +659,32 @@ class LLMAnalyzer:
             True if memory was added, False otherwise
         """
         if not hasattr(self, "memory") or self.memory is None:
-            logging.warning(f"Memory not supported for provider {self.provider}")
+            logger.warning(f"Memory not supported for provider {self.provider}")
             return False
 
         try:
             # Log memory addition attempt
-            logging.info(f"Attempting to add memory for user '{self.user_id}': {content}")
-            
+            logger.info(
+                f"Attempting to add memory for user '{self.user_id}': {content}"
+            )
+
             # Add memory directly as a string - this is the format that works best with mem0
-            result = self.memory.add(content, user_id=self.user_id, metadata=metadata or {})
-            logging.info(f"Added memory using string format: {result}")
-            
+            result = self.memory.add(
+                content, user_id=self.user_id, metadata=metadata or {}
+            )
+            logger.info(f"Added memory using string format: {result}")
+
             # Don't try to list all memories as it causes a 400 error with empty query
-            logging.info(f"Successfully added memory for user {self.user_id}: {content}")
+            logger.info(f"Successfully added memory for user {self.user_id}: {content}")
             return True
         except Exception as e:
-            logging.error(f"Error adding memory: {str(e)}")
+            logger.error(f"Error adding memory: {str(e)}")
             import traceback
-            logging.error(traceback.format_exc())
+
+            logger.error(traceback.format_exc())
             return False
 
-    def create_system_message_with_memories(
-        self, description=None, query=None
-    ):
+    def create_system_message_with_memories(self, description=None, query=None):
         """
         Create a system message with relevant memories
 
@@ -695,12 +704,14 @@ class LLMAnalyzer:
         if hasattr(self, "memory") and self.memory is not None and query:
             try:
                 # Search for relevant memories with the actual query
-                logging.info(f"Searching for memories with query: '{query}' for user: '{self.user_id}'")
+                logger.info(
+                    f"Searching for memories with query: '{query}' for user: '{self.user_id}'"
+                )
                 relevant_memories = self.memory.search(
                     query=query, user_id=self.user_id, limit=5
                 )
-                logging.info(f"Memory search results: {relevant_memories}")
-                
+                logger.info(f"Memory search results: {relevant_memories}")
+
                 if (
                     relevant_memories
                     and "results" in relevant_memories
@@ -715,13 +726,14 @@ class LLMAnalyzer:
                     base_message = (
                         f"{base_message}\n\nRelevant information:\n{memory_text}"
                     )
-                    logging.info(
+                    logger.info(
                         f"Added {len(relevant_memories['results'])} memories to system message"
                     )
             except Exception as e:
-                logging.warning(f"Error retrieving memories: {str(e)}")
+                logger.warning(f"Error retrieving memories: {str(e)}")
                 import traceback
-                logging.warning(traceback.format_exc())
+
+                logger.warning(traceback.format_exc())
 
         return base_message
 
@@ -862,7 +874,7 @@ def main():
             user_id=args.user_id,
         )
     except ValueError as e:
-        logging.error(str(e))
+        logger.error(str(e))
         return 1
 
     # Handle different modes
@@ -887,7 +899,7 @@ def handle_analyze_mode(args, analyzer):
             with open(args.prompt_file, "r") as f:
                 custom_prompt = f.read()
         except Exception as e:
-            logging.error(f"Error reading prompt file: {str(e)}")
+            logger.error(f"Error reading prompt file: {str(e)}")
             return 1
 
     # Process CSV files
@@ -900,10 +912,10 @@ def handle_analyze_mode(args, analyzer):
         ]
 
         if not csv_files:
-            logging.error(f"No CSV files found in {args.csv_file}")
+            logger.error(f"No CSV files found in {args.csv_file}")
             return 1
 
-        logging.info(f"Found {len(csv_files)} CSV files to analyze")
+        logger.info(f"Found {len(csv_files)} CSV files to analyze")
 
         results = analyzer.analyze_multiple_csv(
             csv_files,
@@ -913,7 +925,7 @@ def handle_analyze_mode(args, analyzer):
             args.system_message,
             args.description,
             args.memory_query,
-            args.prompt_type
+            args.prompt_type,
         )
 
         # Save summary
@@ -928,12 +940,12 @@ def handle_analyze_mode(args, analyzer):
             }
             json.dump(summary, f, indent=2)
 
-        logging.info(f"Analysis complete. Results saved to {args.output_dir}")
+        logger.info(f"Analysis complete. Results saved to {args.output_dir}")
 
     else:
         # Process single CSV file
         if not os.path.isfile(args.csv_file):
-            logging.error(f"CSV file not found: {args.csv_file}")
+            logger.error(f"CSV file not found: {args.csv_file}")
             return 1
 
         output_file = os.path.join(
@@ -949,13 +961,13 @@ def handle_analyze_mode(args, analyzer):
             args.system_message,
             args.description,
             args.memory_query,
-            args.prompt_type
+            args.prompt_type,
         )
 
         if result:
-            logging.info(f"Analysis complete. Results saved to {output_file}")
+            logger.info(f"Analysis complete. Results saved to {output_file}")
         else:
-            logging.error("Analysis failed")
+            logger.error("Analysis failed")
             return 1
 
     return 0
@@ -969,9 +981,9 @@ def handle_chat_mode(args, analyzer):
         try:
             with open(args.load_history, "r") as f:
                 chat_history = json.load(f)
-            logging.info(f"Loaded chat history from {args.load_history}")
+            logger.info(f"Loaded chat history from {args.load_history}")
         except Exception as e:
-            logging.error(f"Error loading chat history: {str(e)}")
+            logger.error(f"Error loading chat history: {str(e)}")
             chat_history = []
 
     # Interactive mode
@@ -1031,7 +1043,7 @@ def handle_chat_mode(args, analyzer):
                 print("\nExiting chat...")
                 break
             except Exception as e:
-                logging.error(f"Error in chat: {str(e)}")
+                logger.error(f"Error in chat: {str(e)}")
                 print("\nAn error occurred. Please try again.")
 
         # Save chat history if specified
@@ -1039,24 +1051,22 @@ def handle_chat_mode(args, analyzer):
             try:
                 with open(args.save_history, "w") as f:
                     json.dump(chat_history, f, indent=2)
-                logging.info(f"Saved chat history to {args.save_history}")
+                logger.info(f"Saved chat history to {args.save_history}")
             except Exception as e:
-                logging.error(f"Error saving chat history: {str(e)}")
+                logger.error(f"Error saving chat history: {str(e)}")
 
     # Single message mode
     elif args.message:
-        response, _ = analyzer.chat(
-            args.message, args.system_message, chat_history
-        )
+        response, _ = analyzer.chat(args.message, args.system_message, chat_history)
         if response:
             print(response)
         else:
-            logging.error("Failed to get response")
+            logger.error("Failed to get response")
             return 1
 
     # No message or interactive mode specified
     else:
-        logging.error(
+        logger.error(
             "Either --message or --interactive must be specified for chat mode"
         )
         return 1

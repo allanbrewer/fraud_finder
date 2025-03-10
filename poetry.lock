@@ -923,6 +923,25 @@ docs = ["Sphinx", "furo"]
 test = ["objgraph", "psutil"]
 
 [[package]]
+name = "grokapi"
+version = "0.1.0"
+description = "A Python client for the Grok API"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = []
+develop = false
+
+[package.dependencies]
+requests = ">=2.28.0"
+
+[package.source]
+type = "git"
+url = "https://github.com/mem0ai/grok3-api.git"
+reference = "HEAD"
+resolved_reference = "2605ed6239b4c2832a74bed55e71d012216d4f67"
+
+[[package]]
 name = "grpcio"
 version = "1.70.0"
 description = "HTTP/2-based RPC framework"
@@ -4137,4 +4156,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "9e8d10a3dc831ded98165755033a48d42f5d05e5f8d3edebccb8dcb7e22baa9a"
+content-hash = "5d973ecb14c0368abd2444c689008d53c8c4e370dbf33d3298ba5db054ac7e9a"

@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 import os
-import argparse
+import sys
 import logging
-import time
+import argparse
+import subprocess
 from datetime import datetime
 import json
 import glob
 
+# Add the current directory to the path so we can import our modules
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 # Import our modules
 from download_contracts import main as download_contracts
 from transform_data import main as transform_data
+from llm_analyzer import LLMAnalyzer
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logger = logging.getLogger(__name__)
 
 # Define department mapping (API name to acronym)
 DEPARTMENTS = {
@@ -62,7 +65,7 @@ def process_department(
     os.makedirs(dept_dir, exist_ok=True)
 
     for award_type in award_types:
-        logging.info(f"Processing {dept_name} ({dept_acronym}) - {award_type}")
+        logger.info(f"Processing {dept_name} ({dept_acronym}) - {award_type}")
 
         zip_files = []
 
@@ -70,7 +73,7 @@ def process_department(
         if not skip_download:
             zip_files = download_contracts(dept_name, award_type, start_date, end_date)
             if not zip_files:
-                logging.warning(
+                logger.warning(
                     f"No zip files downloaded for {dept_name} ({award_type})"
                 )
                 continue
@@ -84,12 +87,12 @@ def process_department(
             zip_files = glob.glob(zip_pattern)
 
             if not zip_files:
-                logging.warning(
+                logger.warning(
                     f"No existing zip files found for {dept_name} ({award_type})"
                 )
                 continue
 
-            logging.info(
+            logger.info(
                 f"Found {len(zip_files)} existing zip files for {dept_name} ({award_type})"
             )
 
@@ -119,10 +122,10 @@ def process_all_existing_data(output_dir="processed_data"):
     zip_files = glob.glob(os.path.join("contract_data", "*.zip"))
 
     if not zip_files:
-        logging.warning("No existing zip files found in contract_data directory")
+        logger.warning("No existing zip files found in contract_data directory")
         return results
 
-    logging.info(f"Found {len(zip_files)} existing zip files to process")
+    logger.info(f"Found {len(zip_files)} existing zip files to process")
 
     # Extract unique department-award type combinations from filenames
     dept_award_combos = set()
@@ -146,7 +149,7 @@ def process_all_existing_data(output_dir="processed_data"):
                     break
 
             if not award_type or not dept_parts:
-                logging.warning(
+                logger.warning(
                     f"Could not parse department and award type from filename: {filename}"
                 )
                 continue
@@ -163,19 +166,19 @@ def process_all_existing_data(output_dir="processed_data"):
                     break
 
             if not dept_acronym:
-                logging.warning(f"Unknown department in filename: {dept_name}")
+                logger.warning(f"Unknown department in filename: {dept_name}")
                 continue
 
             if award_type in AWARD_TYPES:
                 dept_award_combos.add((dept_name, dept_acronym, award_type))
 
-    logging.info(
+    logger.info(
         f"Found {len(dept_award_combos)} unique department-award type combinations to process"
     )
 
     # Process each unique combination
     for dept_name, dept_acronym, award_type in dept_award_combos:
-        logging.info(
+        logger.info(
             f"Processing existing data for {dept_name} ({dept_acronym}) - {award_type}"
         )
 
@@ -218,7 +221,7 @@ def main(
 
     # Process all existing data if requested
     if process_existing:
-        logging.info("Processing all existing downloaded data without re-downloading")
+        logger.info("Processing all existing downloaded data without re-downloading")
         results = process_all_existing_data(output_dir)
     else:
         # Use all departments if none specified
@@ -235,11 +238,11 @@ def main(
         # Process each department
         for dept_name in departments:
             if dept_name not in DEPARTMENTS:
-                logging.warning(f"Unknown department: {dept_name}")
+                logger.warning(f"Unknown department: {dept_name}")
                 continue
 
             dept_acronym = DEPARTMENTS[dept_name]
-            logging.info(f"Processing department: {dept_name} ({dept_acronym})")
+            logger.info(f"Processing department: {dept_name} ({dept_acronym})")
 
             dept_results = process_department(
                 dept_name,
@@ -261,7 +264,7 @@ def main(
     with open(summary_file, "w") as f:
         json.dump(results, f, indent=2)
 
-    logging.info(f"Processing complete! Summary saved to {summary_file}")
+    logger.info(f"Processing complete! Summary saved to {summary_file}")
 
     return results
 

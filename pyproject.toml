@@ -1,5 +1,5 @@
 [project]
-name = "windsurf-project"
+name = "waste-finder"
 version = "0.1.0"
 description = "Service to download and analyze active contracts from USAspending.gov"
 authors = [
@@ -13,7 +13,8 @@ dependencies = [
     "python-dateutil (>=2.8.2)",
     "python-dotenv (>=1.0.1,<2.0.0)",
     "mem0ai (>=0.1.66,<0.2.0)",
-    "chromadb (>=0.6.3,<0.7.0)"
+    "chromadb (>=0.6.3,<0.7.0)",
+    "grokapi @ git+https://github.com/mem0ai/grok3-api.git"
 ]
 
 [tool.poetry]
