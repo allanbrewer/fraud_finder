@@ -136,6 +136,11 @@ class BaseLLM:
             messages.extend(chat_history)
         else:
             # Add current prompt if not in chat mode
+            # Ensure the prompt includes the word "json" when using JSON response format
+            if "json" not in complete_prompt.lower():
+                complete_prompt = (
+                    f"{complete_prompt}\n\nProvide your response in JSON format."
+                )
             messages.append({"role": "user", "content": complete_prompt})
 
         payload = {

@@ -15,48 +15,45 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Try to import base_llm from different possible paths
+# Handle imports for both direct execution and module import
 try:
-    from src.waste_finder.core.base_llm import BaseLLM
+    # Try relative import (when used as a package)
+    from ..core.base_llm import BaseLLM
+    from ..core.prompt import prompts
+    logger.debug(f"Using relative imports")
 except ImportError:
     try:
-        from waste_finder.core.base_llm import BaseLLM
+        # Try absolute import with dots (common when using python -m)
+        from src.waste_finder.core.base_llm import BaseLLM
+        from src.waste_finder.core.prompt import prompts
+        logger.debug(f"Using absolute imports with dots")
     except ImportError:
         try:
-            from ..core.base_llm import BaseLLM
+            # Try absolute import with underscores (fallback)
+            from src.waste_finder.core.base_llm import BaseLLM
+            from src.waste_finder.core.prompt import prompts
+            logger.debug(f"Using absolute imports with underscores")
         except ImportError:
-            raise ImportError(
-                "Could not import BaseLLM. Check your python path and file structure."
-            )
+            # Last resort: modify sys.path and try again
+            parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+            if parent_dir not in sys.path:
+                sys.path.insert(0, parent_dir)
+            try:
+                from src.waste_finder.core.base_llm import BaseLLM
+                from src.waste_finder.core.prompt import prompts
+                logger.debug(f"Using sys.path modification and absolute imports")
+            except ImportError as e:
+                logger.error(f"Failed to import required modules: {e}")
+                # Provide fallback prompts
+                prompts = {
+                    "dei": "Analyze this CSV data to identify diversity, equity, and inclusion (DEI) contracts.",
+                    "ngo_fraud": "Analyze this CSV for potential fraud in NGO contracts."
+                }
+                raise ImportError(f"Could not import BaseLLM. Check your Python path and file structure: {e}")
 
-# Import the prompts from prompt.py
-try:
-    from src.waste_finder.core.prompt import prompts
-
-    logger.info(
-        f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}"
-    )
-except ImportError:
-    try:
-        from waste_finder.core.prompt import prompts
-
-        logger.info(
-            f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}"
-        )
-    except ImportError:
-        try:
-            from ..core.prompt import prompts
-
-            logger.info(
-                f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}"
-            )
-        except ImportError:
-            logger.error("Failed to import prompts from prompt.py")
-            prompts = {
-                "dei": "Analyze this CSV data to identify diversity, equity, and inclusion (DEI) contracts. Focus on finding contracts that mention diversity, inclusion, equity, race, gender, or related concepts.",
-                "ngo_fraud": "Analyze this CSV for potential fraud in NGO contracts. Look for unusual patterns, inflated costs, vague descriptions, or any red flags that might indicate waste or fraud.",
-            }
-
+# Log available prompts
+if 'prompts' in locals():
+    logger.info(f"Available prompts: {', '.join(prompts.keys())}")
 
 class CSVAnalyzer(BaseLLM):
     """Class to analyze contract data from CSV files using LLM APIs"""
@@ -328,7 +325,7 @@ class CSVAnalyzer(BaseLLM):
                 base_name = os.path.splitext(filename)[0]
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 output_file = os.path.join(
-                    output_dir, f"{base_name}_analysis_{timestamp}.json"
+                    output_dir, f"analysis_{base_name}_{timestamp}.json"
                 )
 
             # Analyze CSV file
@@ -464,4 +461,6 @@ def main():
 
 
 if __name__ == "__main__":
+    # This code only runs when the module is executed directly
+    # It will not run when the module is imported
     sys.exit(main())

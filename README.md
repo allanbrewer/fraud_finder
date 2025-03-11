@@ -16,8 +16,8 @@ This Python service downloads active contracts from the USA Spending API, analyz
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/waste-finder.git
-cd waste-finder
+git clone https://github.com/allanbrewer/fraud_finder.git
+cd fraud_finder
 ```
 
 2. Install dependencies using Poetry:
@@ -37,9 +37,229 @@ poetry install
    - `TWITTER_ACCESS_TOKEN`: Your Twitter access token
    - `TWITTER_ACCESS_TOKEN_SECRET`: Your Twitter access token secret
 
-## Environment Setup
+## Usage
 
-Create a `.env` file in the root directory with your API keys:
+### 1. Download Contracts Data
+
+```bash
+poetry run python -m src.waste-finder.data.download_contracts --department "Department of Energy" --start-date "2024-01-01"
+```
+
+### 2. Transform Contract Data
+
+```bash
+poetry run python -m src.waste-finder.data.transform_data --dept-name "Department of Energy" --dept-acronym "DOE"
+```
+
+### 3. Data Orchestrator
+
+```bash
+poetry run python -m src.waste-finder.orchestration.orchestrator --departments "Department of Energy" --start-date "2024-01-01" --skip-download --process-existing
+```
+
+### 4. Filter Contracts
+
+```bash
+poetry run python -m src.waste-finder.data.filter_contracts --input-dir ./processed_data/ --output-dir ./filtered_data/ --min-amount 1000000
+```
+
+### 5. Analyze Contract Data
+
+```bash
+poetry run python -m src.waste-finder.analysis.csv_analyzer ./filtered_data/ --prompt-type ngo_fraud --user-id default_user
+```
+
+### 6. Chat with LLM
+
+```bash
+poetry run python -m src.waste-finder.interaction.llm_chat --interactive --prompt-type ngo_fraud --user-id default_user
+```
+
+### 7. Analyze JSON Data
+
+```bash
+poetry run python -m src.waste-finder.analysis.json_analyzer ./llm_analysis/ --user-id default_user
+```
+
+### 8. Twitter Poster
+
+```bash
+poetry run python -m src.waste-finder.interaction.twitter_poster json ./posts/post.json
+```
+
+### 9. Run JSON and Twitter Orchestrator
+
+```bash
+poetry run python -m src.waste-finder.orchestration.fraud_poster --file ./llm_analysis/file.json --user-id default_user
+```
+
+## Command-Line Arguments
+
+### Download Contracts Arguments
+
+```
+--department          Department name to download contracts for (required)
+--sub-award-type      Type of award to download (default: procurement)
+--start-date          Start date for contracts in YYYY-MM-DD format (default: 30 days ago)
+--end-date            End date for contracts in YYYY-MM-DD format (default: today)
+--api-key             USAspending API key (if not specified, will use from .env file)
+```
+
+### Transform Data Arguments
+
+```
+--zip-dir             Directory containing downloaded zip files (default: contract_data)
+--output-dir          Directory to save processed data (default: processed_data)
+--dept-name           Full department name (required)
+--dept-acronym        Department acronym (required)
+--sub-award-type      Type of award to process (default: procurement)
+```
+
+### Filter Contracts Arguments
+
+```
+--input-dir           Directory containing processed CSV files (default: processed_data)
+--output-dir          Directory to save filtered data (default: filtered_data)
+--min-amount          Minimum contract amount to include (default: 500000)
+--combine             Combine all filtered results into one file (default: True)
+--award-type          Type of award to filter (default: None, processes all types)
+```
+
+### CSV Analyzer Arguments
+
+```
+csv_file              Path to CSV file or directory with grant data to analyze
+--custom-prompt       Custom prompt to use for analysis
+--max-rows            Maximum number of rows to include from CSV
+--output-dir          Directory to save output files
+--system-message      Custom system message for the LLM
+--description         Description of the data for the LLM
+--memory-query        Query to retrieve relevant memories
+--prompt-type         Type of prompt to use (default: ngo_fraud)
+--provider            LLM provider to use (default: xai)
+--model               Model to use (default depends on provider)
+--temperature         Temperature for response generation (default: 0.7)
+--max-tokens          Maximum tokens for response (default: 4096)
+--api-key             API key for LLM provider (if not specified, will use from .env file)
+--user-id             User ID for memory operations (default: default_user)
+```
+
+### LLM Chat Arguments
+
+```
+--interactive         Start interactive chat mode
+--prompt-type         Type of prompt to use (default: ngo_fraud)
+--provider            LLM provider to use (default: xai)
+--model               Model to use (default depends on provider)
+--temperature         Temperature for response generation (default: 0.7)
+--max-tokens          Maximum tokens for response (default: 4096)
+--api-key             API key for LLM provider (if not specified, will use from .env file)
+--user-id             User ID for memory operations (default: default_user)
+```
+
+### JSON Analyzer Arguments
+
+```
+json_file             Path to JSON file with grant data to analyze
+--output-file         Path to save output JSON with post content
+--prompt-type         Type of prompt to use (default: x_doge)
+--no-research         Skip researching entities in the grant data
+--provider            LLM provider to use (default: xai)
+--model               Model to use (default depends on provider)
+--temperature         Temperature for response generation (default: 0.7)
+--max-tokens          Maximum tokens for response (default: 4096)
+--api-key             API key for LLM provider (if not specified, will use from .env file)
+--user-id             User ID for memory operations (default: default_user)
+```
+
+### Twitter Poster Arguments
+
+```
+mode                  Mode to use: 'text' or 'json'
+content               Text to post or path to JSON file with post content
+--quote-tweet-id      ID of tweet to quote (optional)
+--dry-run             Don't actually post to Twitter, just print what would be posted
+```
+
+### Fraud Poster Arguments
+
+```
+--file                Path to JSON file with grant data to analyze
+--dir                 Directory containing JSON files to analyze
+--output-dir          Directory to save output files
+--prompt-type         Type of prompt to use (default: x_doge)
+--no-research         Skip researching entities in the grant data
+--no-post             Don't post to Twitter, just generate posts
+--dry-run             Don't actually post to Twitter, just print what would be posted
+--provider            LLM provider to use (default: xai)
+--model               Model to use (default depends on provider)
+--temperature         Temperature for response generation (default: 0.7)
+--max-tokens          Maximum tokens for response (default: 4096)
+--api-key             API key for LLM provider (if not specified, will use from .env file)
+--user-id             User ID for memory operations (default: default_user)
+```
+
+### Orchestrator Arguments
+
+```
+--departments         Comma-separated list of departments to process
+--start-date          Start date for contracts in YYYY-MM-DD format (default: 30 days ago)
+--end-date            End date for contracts in YYYY-MM-DD format (default: today)
+--skip-download       Skip downloading new contracts
+--skip-transform      Skip transforming downloaded data
+--skip-filter         Skip filtering transformed data
+--process-existing    Process existing data in the processed directory
+--min-amount          Minimum contract amount to include (default: 500000)
+--output-dir          Directory to save output files
+```
+
+## Workflow Example
+
+Here's a complete example workflow:
+
+1. **Download contracts for the Department of Energy**:
+```bash
+poetry run python -m src.waste-finder.data.download_contracts --department "Department of Energy" --start-date "2024-01-01"
+```
+
+2. **Transform the downloaded data**:
+```bash
+poetry run python -m src.waste-finder.data.transform_data --dept-name "Department of Energy" --dept-acronym "DOE"
+```
+
+3. **Filter contracts by amount**:
+```bash
+poetry run python -m src.waste-finder.data.filter_contracts --min-amount 1000000
+```
+
+4. **Analyze filtered contracts**:
+```bash
+poetry run python -m src.waste-finder.analysis.csv_analyzer ./filtered_data/ --prompt-type ngo_fraud --user-id default_user
+```
+
+5. **Generate social media posts from analysis**:
+```bash
+poetry run python -m src.waste-finder.analysis.json_analyzer ./llm_analysis/analysis_file.json --output-file ./posts/post.json
+```
+
+6. **Post findings to Twitter**:
+```bash
+poetry run python -m src.waste-finder.interaction.twitter_poster json ./posts/post.json
+```
+
+7. **Or use the combined fraud poster**:
+```bash
+poetry run python -m src.waste-finder.orchestration.fraud_poster --file ./llm_analysis/analysis_file.json --output-dir ./posts
+```
+
+8. **Or run the entire orchestration process**:
+```bash
+poetry run python -m src.waste-finder.orchestration.orchestrator --departments "Department of Energy" --start-date "2024-01-01"
+```
+
+## Environment Variables
+
+The following environment variables are used by the project:
 
 ```
 OPENAI_API_KEY=your_openai_api_key
@@ -53,181 +273,11 @@ TWITTER_ACCESS_TOKEN='your_access_token'
 TWITTER_ACCESS_TOKEN_SECRET='your_access_token_secret'
 ```
 
-## Usage
+You can obtain Twitter credentials by creating a Twitter Developer account and setting up a Twitter App with OAuth 1.0a authentication.
 
-### 1. Download Contracts Data
+## License
 
-```bash
-poetry run python -m src.waste-finder.download_contracts --department "Department of Energy" --start-date "2024-01-01"
-```
-
-### 2. Transform Contract Data
-
-```bash
-poetry run python -m src.waste-finder.transform_data --dept-name "Department of Energy" --dept-acronym "DOE"
-```
-
-### 3. Data Orchestrator
-
-```bash
-poetry run python -m src.waste-finder.orchestrator --departments "Department of Energy" --start-date "2024-01-01" --skip-download --process-existing
-```
-
-### 4. Filter Contracts
-
-```bash
-poetry run python -m src.waste-finder.data.filter_contracts --input-dir ./processed_data/ --output-dir ./filtered_data/ --min-amount 1000000
-```
-
-### 5. Analyze Contract Data
-
-```bash
-poetry run python -m src.waste-finder.csv_analyzer ./filtered_data/ --prompt-type ngo_fraud --user-id default_user
-```
-
-### 6. Chat with LLM
-
-```bash
-poetry run python -m src.waste-finder.llm_chat --interactive --prompt-type ngo_fraud --user-id default_user
-```
-
-### 7. Analyze JSON Data
-
-```bash
-poetry run python -m src.waste-finder.json_analyzer ./llm_analysis/ --user-id default_user
-```
-
-### 8. Twitter Poster
-
-```bash
-poetry run python -m src.waste-finder.twitter_poster json ./posts/post.json
-```
-
-### 9. Run JSON and Twitter Orchestrator
-
-```bash
-poetry run python -m src.waste-finder.fraud_poster --file ./llm_analysis/file.json --user-id default_user
-```
-
-## Command-Line Arguments
-
-### CSV Analyzer Arguments
-
-```
---custom-prompt       Custom prompt to use for analysis
---max-rows            Maximum number of rows to include from CSV
---output-dir          Directory to save output files
---system-message      System message to include in API request
---description         Description to include in system message
---memory-query        Query to use for retrieving memories
---prompt-type         Type of prompt to use (default: dei)
---provider            LLM provider to use (default: xai)
---model               Model to use (default depends on provider)
---temperature         Temperature for LLM (default: 0.1)
---max-tokens          Maximum tokens for LLM response (default: 4096)
---api-key             API key (optional, default: from environment variables)
---user-id             User ID for memory operations (default: default_user)
-```
-
-### LLM Chat Arguments
-
-```
---interactive         Run in interactive mode
---system-message      System message to include in API request
---description         Description to include in system message
---memory-query        Query to use for retrieving memories
---prompt-type         Type of prompt to use (default: dei)
---provider            LLM provider to use (default: xai)
---model               Model to use (default depends on provider)
---temperature         Temperature for LLM (default: 0.1)
---max-tokens          Maximum tokens for LLM response (default: 4096)
---api-key             API key (optional, default: from environment variables)
---user-id             User ID for memory operations (default: default_user)
-```
-
-### JSON Analyzer Arguments
-
-```
-json_file              Path to JSON file with grant data to analyze
---output-file, -o      Path to save output JSON with post content
---prompt-type, -p      Type of prompt to use (default: x_doge)
---no-research          Skip researching entities in the grant data
---provider             LLM provider to use (default: xai)
---model                Model to use (default depends on provider)
---temperature          Temperature for response generation (default: 0.7)
---max-tokens           Maximum tokens for response (default: 4096)
---api-key              API key for LLM provider (if not specified, will use from .env file)
---user-id              User ID for memory operations (default: default_user)
-```
-
-### Twitter Poster Arguments
-
-```
-post                   Post a tweet
-  text                 Text content of the tweet
-  --quote-id           ID of a tweet to quote
-
-json                   Post a tweet from a JSON file
-  json_file            Path to JSON file with tweet content
-
-info                   Get information about the authenticated user
-```
-
-### Fraud Poster Arguments
-
-```
---file, -f             Path to a single JSON file to process
---directory, -d        Directory containing JSON files to process
---output-dir, -o       Directory to save output files
---prompt-type, -p      Type of prompt to use for generating posts (default: x_doge)
---no-research          Skip researching entities in the grant data
---dry-run              Don't actually post to Twitter, just generate the posts
---limit, -l            Maximum number of files to process from directory
---file-pattern         Pattern to match JSON files (default: *.json)
---provider             LLM provider to use (default: xai)
---model                Model to use (default depends on provider)
---temperature          Temperature for response generation (default: 0.7)
---max-tokens           Maximum tokens for response (default: 4096)
---api-key              API key for LLM provider
---user-id              User ID for memory operations (default: default_user)
-```
-
-### Chat Commands
-In interactive chat mode, you can use the following special commands:
-
-- `exit` or `quit`: End the conversation
-- `save`: Save the conversation history to a JSON file
-- `memory: <content>`: Add a memory to the system
-- `prompt: <type>`: Change the prompt type during the session
-
-## Memory System
-
-The LLM analyzer includes an integrated memory system that allows the AI to remember important information across sessions. This is useful for maintaining context in long-running analyses.
-
-The memory system is automatically initialized when you specify a `--user-id` parameter. Memories are stored in a local database at `~/.mem0/`.
-
-To leverage the memory system:
-
-1. Always use the same `--user-id` for related sessions
-2. Use the `--memory-query` parameter to search for relevant memories
-3. The system will automatically retrieve and incorporate relevant memories into the analysis
-
-## LLM Providers
-
-The system supports multiple LLM providers:
-
-- **XAI (Default)**: Uses the Grok-2-latest model
-- **OpenAI**: Uses GPT-4o-mini by default
-- **Anthropic**: Uses Claude-3-7-sonnet-latest by default
-
-You can specify the provider using the `--provider` flag when running the LLM analyzer.
-
-## Prompt System
-
-The system includes multiple prompt types that can be selected:
-- `dei`: Prompt for analyzing DEI (Diversity, Equity, and Inclusion) contracts
-- `ngo_fraud`: Prompt for analyzing potential fraud in NGO government awards
-- `x_doge`: Prompt for generating Twitter posts
+This project is licensed under the Creative Commons Attribution-NonCommercial 4.0 International License - see the [LICENSE](LICENSE) file for details.
 
 ## Project Structure
 
@@ -261,7 +311,6 @@ src/waste-finder/
     ├── __init__.py
     ├── orchestrator.py          # Main orchestration for analysis pipeline
     └── fraud_poster.py          # Orchestration for posting findings
-
 ```
 
 ## Twitter Integration Setup

@@ -13,46 +13,53 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Try to import base_llm from different possible paths
+# Handle imports for both direct execution and module import
 try:
-    from src.waste_finder.core.base_llm import BaseLLM
+    # Try relative import (when used as a package)
+    from ..core.base_llm import BaseLLM
+    from ..core.prompt import prompts
+
+    logger.debug(f"Using relative imports")
 except ImportError:
     try:
-        from waste_finder.core.base_llm import BaseLLM
+        # Try absolute import with dots (common when using python -m)
+        from src.waste_finder.core.base_llm import BaseLLM
+        from src.waste_finder.core.prompt import prompts
+
+        logger.debug(f"Using absolute imports with dots")
     except ImportError:
         try:
-            from ..core.base_llm import BaseLLM
+            # Try absolute import with underscores (fallback)
+            from src.waste_finder.core.base_llm import BaseLLM
+            from src.waste_finder.core.prompt import prompts
+
+            logger.debug(f"Using absolute imports with underscores")
         except ImportError:
-            raise ImportError(
-                "Could not import BaseLLM. Check your python path and file structure."
+            # Last resort: modify sys.path and try again
+            parent_dir = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), "../..")
             )
+            if parent_dir not in sys.path:
+                sys.path.insert(0, parent_dir)
+            try:
+                from src.waste_finder.core.base_llm import BaseLLM
+                from src.waste_finder.core.prompt import prompts
 
-# Import the prompts from prompt.py
-try:
-    from src.waste_finder.core.prompt import prompts
+                logger.debug(f"Using sys.path modification and absolute imports")
+            except ImportError as e:
+                logger.error(f"Failed to import required modules: {e}")
+                # Provide fallback prompts
+                prompts = {
+                    "x_doge": "Generate a Twitter post about government waste and fraud.",
+                    "x_post": "Create a social media post about suspicious government spending.",
+                }
+                raise ImportError(
+                    f"Could not import BaseLLM. Check your Python path and file structure: {e}"
+                )
 
-    logger.info(
-        f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}"
-    )
-except ImportError:
-    try:
-        from waste_finder.core.prompt import prompts
-
-        logger.info(
-            f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}"
-        )
-    except ImportError:
-        try:
-            from ..core.prompt import prompts
-
-            logger.info(
-                f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}"
-            )
-        except ImportError:
-            logger.error("Failed to import prompts from prompt.py")
-            prompts = {
-                "x_doge": "Generate a Twitter post about government waste and fraud.",
-            }
+# Log available prompts
+if "prompts" in locals():
+    logger.info(f"Available prompts: {', '.join(prompts.keys())}")
 
 
 class JSONAnalyzer(BaseLLM):
@@ -254,16 +261,16 @@ class JSONAnalyzer(BaseLLM):
                 grants_info["amount"] = data.get("amount")
             elif "total_obligated_amount" in data:
                 grants_info["amount"] = data.get("total_obligated_amount")
-            elif "total_dollars_obligated" in data:
-                grants_info["amount"] = data.get("total_dollars_obligated")
+            elif "current_total_value_of_award" in data:
+                grants_info["amount"] = data.get("current_total_value_of_award")
 
-            # Extract recipient name
+            # Extract recipient
             if "recipient" in data:
                 grants_info["recipient_name"] = data.get("recipient")
             elif "recipient_name" in data:
                 grants_info["recipient_name"] = data.get("recipient_name")
 
-            # Extract recipient info
+            # Extract recipient info if available
             if "recipient_info" in data:
                 grants_info["recipient_info"] = data.get("recipient_info")
 
@@ -282,55 +289,47 @@ class JSONAnalyzer(BaseLLM):
 
     def create_system_message_for_post(self, grants_info):
         """
-        Create a system message for post generation
+        Create system message for post generation
 
         Args:
             grants_info: Dictionary with grant information
 
         Returns:
-            System message for the LLM
+            System message string
         """
-        system_message = """You are a social media strategist for the Department of Government Efficiency (DOGE).
-        Your task is to generate a compelling X/Twitter post that exposes government waste, fraud, or abuse.
+        # Create a system message that instructs the LLM to generate a post
+        system_message = """You are a government waste investigator creating social media posts about suspicious government grants.
         
-        Follow these guidelines:
-        1. Focus on the facts and highlight the most wasteful or suspicious aspects
-        2. Keep the post under 280 characters
-        3. Be provocative but professional
-        4. Include specific details like dollar amounts, recipient names, or contract numbers when relevant
-        5. Format the response as a valid JSON object with 'text' and 'quote_tweet_id' fields
+        Your task is to create a compelling, factual post about potential government waste or fraud in the grant data provided.
         
-        The post should be shareable and get people's attention about government waste.
+        Focus on:
+        1. The amount of money spent
+        2. Who received the grant
+        3. Any suspicious patterns or red flags
+        4. Why taxpayers should be concerned
+        
+        Your post should be concise, attention-grabbing, and under 280 characters.
+        
+        Format your response as a JSON object with 'text' and 'quote_tweet_id' fields.
         """
 
         # Add memory information if available
         if hasattr(self, "memory") and self.memory is not None:
             try:
-                # Try to find relevant memories related to the recipient or contract type
-                search_term = grants_info.get("recipient_name", "")
-                if not search_term and "description" in grants_info:
-                    # Extract keywords from description
-                    search_term = grants_info["description"]
+                # Create a query based on the grant information
+                memory_query = f"government grants to {grants_info.get('recipient_name', 'unknown recipient')}"
 
-                if search_term:
-                    relevant_memories = self.memory.search(
-                        query=search_term, user_id=self.user_id, limit=3
-                    )
+                # Retrieve relevant memories
+                memories = self.memory.search(memory_query)
 
-                    if (
-                        relevant_memories
-                        and "results" in relevant_memories
-                        and len(relevant_memories["results"]) > 0
-                    ):
-                        memory_text = "Consider these relevant past findings:\n\n"
-                        for i, memory in enumerate(relevant_memories["results"]):
-                            content = memory.get("memory", "")
-                            if content:
-                                memory_text += f"{i+1}. {content}\n\n"
+                if memories and len(memories) > 0:
+                    memory_texts = [f"- {mem.text}" for mem in memories]
+                    memory_context = "\n".join(memory_texts)
 
-                        system_message = f"{system_message}\n\n{memory_text}"
+                    system_message += f"\n\nHere are some relevant facts from your previous investigations:\n{memory_context}"
+                    logger.info(f"Added {len(memories)} memories to system message")
             except Exception as e:
-                logger.error(f"Error retrieving memories: {str(e)}")
+                logger.warning(f"Error retrieving memories: {str(e)}")
 
         return system_message
 
@@ -455,4 +454,7 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # This code only runs when the module is executed directly
+    # It will not run when the module is imported
+    if __name__ == "__main__":
+        sys.exit(main())
