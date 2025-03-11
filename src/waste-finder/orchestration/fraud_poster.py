@@ -17,16 +17,16 @@ logger = logging.getLogger(__name__)
 
 # Try to import modules from different possible paths
 try:
-    from src.waste_finder.json_analyzer import JSONAnalyzer
-    from src.waste_finder.twitter_poster import TwitterPoster
+    from src.waste_finder.analysis.json_analyzer import JSONAnalyzer
+    from src.waste_finder.interaction.twitter_poster import TwitterPoster
 except ImportError:
     try:
-        from waste_finder.json_analyzer import JSONAnalyzer
-        from waste_finder.twitter_poster import TwitterPoster
+        from waste_finder.analysis.json_analyzer import JSONAnalyzer
+        from waste_finder.interaction.twitter_poster import TwitterPoster
     except ImportError:
         try:
-            from .json_analyzer import JSONAnalyzer
-            from .twitter_poster import TwitterPoster
+            from ..analysis.json_analyzer import JSONAnalyzer
+            from ..interaction.twitter_poster import TwitterPoster
         except ImportError:
             raise ImportError(
                 "Could not import required modules. Check your python path and file structure."

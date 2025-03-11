@@ -7,6 +7,12 @@ import argparse
 import time
 from dotenv import load_dotenv
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
 # Try to import base_llm from different possible paths
 try:
     from src.waste_finder.core.base_llm import BaseLLM
@@ -24,27 +30,31 @@ except ImportError:
 # Import the prompts from prompt.py
 try:
     from src.waste_finder.core.prompt import prompts
-    logger.info(f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}")
+
+    logger.info(
+        f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}"
+    )
 except ImportError:
     try:
         from waste_finder.core.prompt import prompts
-        logger.info(f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}")
+
+        logger.info(
+            f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}"
+        )
     except ImportError:
         try:
             from ..core.prompt import prompts
-            logger.info(f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}")
+
+            logger.info(
+                f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}"
+            )
         except ImportError:
             logger.error("Failed to import prompts from prompt.py")
             prompts = {
                 "dei": "Analyze this contract data for DEI spending...",
-                "ngo_fraud": "Analyze this contract data for NGO fraud..."
+                "ngo_fraud": "Analyze this contract data for NGO fraud...",
             }
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
 
 class LLMChat(BaseLLM):
     """Class for interactive chat with LLM APIs"""

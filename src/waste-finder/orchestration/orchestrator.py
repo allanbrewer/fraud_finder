@@ -1,23 +1,33 @@
 #!/usr/bin/env python3
 import os
-import sys
 import logging
 import argparse
-import subprocess
 from datetime import datetime
 import json
 import glob
 
-# Add the current directory to the path so we can import our modules
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-# Import our modules
-from download_contracts import main as download_contracts
-from transform_data import main as transform_data
-from llm_analyzer import LLMAnalyzer
-
 # Configure logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
+
+# Try to import modules from different possible paths
+try:
+    from src.waste_finder.data.download_contracts import main as download_contracts
+    from src.waste_finder.data.transform_data import main as transform_data
+except ImportError:
+    try:
+        from waste_finder.data.download_contracts import main as download_contracts
+        from waste_finder.data.transform_data import main as transform_data
+    except ImportError:
+        try:
+            from ..data.download_contracts import main as download_contracts
+            from ..data.transform_data import main as transform_data
+        except ImportError:
+            raise ImportError(
+                "Could not import required modules. Check your python path and file structure."
+            )
 
 # Define department mapping (API name to acronym)
 DEPARTMENTS = {

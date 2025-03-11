@@ -73,31 +73,37 @@ poetry run python -m src.waste-finder.transform_data --dept-name "Department of 
 poetry run python -m src.waste-finder.orchestrator --departments "Department of Energy" --start-date "2024-01-01" --skip-download --process-existing
 ```
 
-### 4. Analyze Contract Data
+### 4. Filter Contracts
 
 ```bash
-poetry run python -m src.waste-finder.csv_analyzer ./processed_data/ --prompt-type ngo_fraud --user-id default_user
+poetry run python -m src.waste-finder.data.filter_contracts --input-dir ./processed_data/ --output-dir ./filtered_data/ --min-amount 1000000
 ```
 
-### 5. Chat with LLM
+### 5. Analyze Contract Data
+
+```bash
+poetry run python -m src.waste-finder.csv_analyzer ./filtered_data/ --prompt-type ngo_fraud --user-id default_user
+```
+
+### 6. Chat with LLM
 
 ```bash
 poetry run python -m src.waste-finder.llm_chat --interactive --prompt-type ngo_fraud --user-id default_user
 ```
 
-### 6. Analyze JSON Data
+### 7. Analyze JSON Data
 
 ```bash
 poetry run python -m src.waste-finder.json_analyzer ./llm_analysis/ --user-id default_user
 ```
 
-### 7. Twitter Poster
+### 8. Twitter Poster
 
 ```bash
 poetry run python -m src.waste-finder.twitter_poster json ./posts/post.json
 ```
 
-### 8. Run JSON and Twitter Orchestrator
+### 9. Run JSON and Twitter Orchestrator
 
 ```bash
 poetry run python -m src.waste-finder.fraud_poster --file ./llm_analysis/file.json --user-id default_user

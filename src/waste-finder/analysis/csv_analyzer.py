@@ -9,6 +9,12 @@ import time
 import sys
 from dotenv import load_dotenv
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
 # Try to import base_llm from different possible paths
 try:
     from src.waste_finder.core.base_llm import BaseLLM
@@ -22,12 +28,6 @@ except ImportError:
             raise ImportError(
                 "Could not import BaseLLM. Check your python path and file structure."
             )
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
 
 # Import the prompts from prompt.py
 try:

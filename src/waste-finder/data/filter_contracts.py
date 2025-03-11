@@ -9,24 +9,34 @@ import glob
 import json
 
 # Configure logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
 def setup_advanced_keywords():
     """Define more specific keywords for advanced filtering (case-insensitive)"""
     keywords = [
-        "DEI",  # Explicit DEI catch-all
-        "diversity",  # Core DEI term
-        "equity",  # Core DEI term
-        "inclusion",  # Core DEI term
-        "gender",  # DEI-adjacent (e.g., "gender equity")
-        "non-binary",  # DEI niche (rare, but DOGE hates it)
-        # "training",  # DEI/waste flag (e.g., "DEI training" or vague $)
-        # "consulting",  # Waste flag (overpaid fluff)
-        # "support",  # Waste flag (vague "support services")
-        # "initiative",  # Waste flag (e.g., "diversity initiative")
-        # "administrative",  # Waste flag (clerical bloat)
-        # "public-facing",
+        "environmental justice",
+        "sustainability",
+        "green",
+        "climate",
+        "NGO",
+        "non-profit",
+        "charity",
+        "shell company",
+        "foreign aid",
+        "low-income",
+        "disadvantaged",
+        "non government organization",
+        "foundation",
+        "institution",
+        "institute",
+        "consulting",
+        "support",
+        "support services",
+        "training",
     ]
 
     # Create a regex pattern to match whole words or phrases
