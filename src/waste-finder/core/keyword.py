@@ -6,8 +6,6 @@ DEI_KEYWORDS = [
     "inclusion",
     "gender",
     "civil rights",
-    "support",
-    "initiative",
     "non-binary",
     "environmental justice",
     "sustainability",
