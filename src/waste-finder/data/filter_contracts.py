@@ -14,34 +14,52 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Import the keywords from keyword.py
+try:
+    from src.waste_finder.core.keyword import keywords
 
-def setup_advanced_keywords():
-    """Define more specific keywords for advanced filtering (case-insensitive)"""
-    keywords = [
-        "environmental justice",
-        "sustainability",
-        "green",
-        "climate",
-        "NGO",
-        "non-profit",
-        "charity",
-        "shell company",
-        "foreign aid",
-        "low-income",
-        "disadvantaged",
-        "non government organization",
-        "foundation",
-        "institution",
-        "institute",
-        "consulting",
-        "support",
-        "support services",
-        "training",
-    ]
+    logger.info(
+        f"Successfully imported keywords from keyword.py: {', '.join(keywords.keys())}"
+    )
+except ImportError:
+    try:
+        from waste_finder.core.keyword import keywords
+
+        logger.info(
+            f"Successfully imported keywords from keyword.py: {', '.join(keywords.keys())}"
+        )
+    except ImportError:
+        try:
+            from ..core.keyword import keywords
+
+            logger.info(
+                f"Successfully imported keywords from keyword.py: {', '.join(keywords.keys())}"
+            )
+        except ImportError:
+            logger.error("Failed to import keywords from keywords.py")
+            keywords = None
+
+
+def setup_advanced_keywords(keyword_type="waste"):
+    """
+    Define more specific keywords for advanced filtering (case-insensitive)
+
+    Args:
+        keyword_type: Type of keywords to use (main, dei, ngo, waste)
+
+    Returns:
+        Compiled regex pattern for matching keywords
+    """
+    if not keywords or keyword_type not in keywords:
+        logger.warning(f"Keyword type '{keyword_type}' not found, using waste keywords")
+        keyword_type = "waste"
+
+    keywords_list = keywords[keyword_type]
+    logger.info(f"Using {len(keywords_list)} keywords from '{keyword_type}' category")
 
     # Create a regex pattern to match whole words or phrases
     pattern = re.compile(
-        r"\b" + "|".join([re.escape(kw) for kw in keywords]) + r"\b", re.IGNORECASE
+        r"\b" + "|".join([re.escape(kw) for kw in keywords_list]) + r"\b", re.IGNORECASE
     )
     return pattern
 
@@ -299,7 +317,9 @@ def combine_filtered_files(filtered_files, output_dir):
     return combined_path
 
 
-def process_all_files(input_dir, output_dir, min_amount, award_type=None):
+def process_all_files(
+    input_dir, output_dir, min_amount, award_type=None, keyword_type="waste"
+):
     """
     Process all CSV files in the input directory and its subdirectories
 
@@ -308,6 +328,7 @@ def process_all_files(input_dir, output_dir, min_amount, award_type=None):
         output_dir: Directory to save filtered files
         min_amount: Minimum dollar amount to include
         award_type: Type of award to filter ('procurement', 'grant', or None for both)
+        keyword_type: Type of keywords to use for filtering
 
     Returns:
         List of filtered file paths
@@ -316,7 +337,7 @@ def process_all_files(input_dir, output_dir, min_amount, award_type=None):
     os.makedirs(output_dir, exist_ok=True)
 
     # Set up keyword pattern
-    pattern = setup_advanced_keywords()
+    pattern = setup_advanced_keywords(keyword_type)
 
     # Find all CSV files in the input directory and its subdirectories
     csv_files = []
@@ -354,6 +375,7 @@ def process_all_files(input_dir, output_dir, min_amount, award_type=None):
             "timestamp": timestamp,
             "minimum_amount": min_amount,
             "award_type": award_type if award_type else "all",
+            "keyword_type": keyword_type,
             "files_processed": len(csv_files),
             "files_with_matches": len(filtered_files),
             "filtered_files": [os.path.basename(f) for f in filtered_files],
@@ -373,6 +395,7 @@ def main(
     min_amount=500000,
     combine=True,
     award_type=None,
+    keyword_type="waste",
 ):
     """
     Main function to filter contracts by amount and keywords
@@ -383,6 +406,7 @@ def main(
         min_amount: Minimum dollar amount to include
         combine: Whether to combine all filtered files into a single file
         award_type: Type of award to filter ('procurement', 'grant', or None for both)
+        keyword_type: Type of keywords to use for filtering (main, dei, ngo, waste)
 
     Returns:
         Exit code (0 for success, 1 for error)
@@ -392,8 +416,12 @@ def main(
     if award_type:
         logger.info(f"Filtering only {award_type} awards")
 
+    logger.info(f"Using '{keyword_type}' keyword set for filtering")
+
     # Process all files
-    filtered_files = process_all_files(input_dir, output_dir, min_amount, award_type)
+    filtered_files = process_all_files(
+        input_dir, output_dir, min_amount, award_type, keyword_type
+    )
 
     if not filtered_files:
         logger.warning("No files passed the filtering criteria")
@@ -414,6 +442,8 @@ def main(
 
 
 if __name__ == "__main__":
+    import sys
+
     parser = argparse.ArgumentParser(
         description="Filter contracts by amount and keywords"
     )
@@ -443,6 +473,12 @@ if __name__ == "__main__":
         choices=["procurement", "grant"],
         help="Type of award to filter (default: both types)",
     )
+    parser.add_argument(
+        "--keyword-type",
+        default="waste",
+        choices=["main", "dei", "ngo", "waste"],
+        help="Type of keywords to use for filtering (default: waste)",
+    )
 
     args = parser.parse_args()
 
@@ -453,5 +489,6 @@ if __name__ == "__main__":
             args.min_amount,
             not args.no_combine,
             args.award_type,
+            args.keyword_type,
         )
     )

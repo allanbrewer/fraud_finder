@@ -14,111 +14,50 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Import the keywords from keyword.py
+try:
+    from src.waste_finder.core.keyword import keywords
+
+    logger.info(
+        f"Successfully imported keywords from keyword.py: {', '.join(keywords.keys())}"
+    )
+except ImportError:
+    try:
+        from waste_finder.core.keyword import keywords
+
+        logger.info(
+            f"Successfully imported keywords from keyword.py: {', '.join(keywords.keys())}"
+        )
+    except ImportError:
+        try:
+            from ..core.keyword import keywords
+
+            logger.info(
+                f"Successfully imported keywords from keyword.py: {', '.join(keywords.keys())}"
+            )
+        except ImportError:
+            logger.error("Failed to import keywords from keywords.py")
+            keywords = None
+
 
 def setup_keywords():
-    """Define keywords for filtering (case-insensitive)"""
-    keywords = [
-        "DEI",
-        "diversity",
-        "equity",
-        "inclusion",
-        "gender",
-        "civil rights",
-        "training",
-        "workshops",
-        "clerical",
-        "mailing",
-        "operations",
-        "support",
-        "consulting",
-        "services",
-        "administrative",
-        "initiative",
-        "public-facing",
-        "applications",
-        "observ",
-        "inform",
-        "mail",
-        "facility",
-        "institute",
-        "non-binary",
-        "environmental justice",
-        "sustainability",
-        "resilience",
-        "energy",
-        "conservation",
-        "empowerment",
-        "inclusive",
-        "justice",
-        "social justice",
-        "racial justice",
-        "gender justice",
-        "female",
-        "indigenous",
-        "LGBT",
-        "literacy",
-        "education",
-        "health",
-        "poverty",
-        "humanitarian",
-        "foreign aid",
-        "international development",
-        "organizational culture",
-        "leadership development",
-        "retreat",
-        "study tour",
-        "mentorship",
-        "Integrated Pest Management",
-        "civil society",
-        "media programs",
-        "democracy",
-        "accountability",
-        "male circumcision",
-        "membership",
-        "consulting services",
-        "program support",
-        "general support",
-        "capacity building",
-        "technical assistance",
-        "management services",
-        "administrative support",
-        "operational costs",
-        "strategic planning",
-        "miscellaneous expenses",
-        "innovation",
-        "sustainability",
-        "community development",
-        "outreach",
-        "engagement",
-        "awareness",
-        "partnership",
-        "collaboration",
-        "initiatives",
-        "pass-through",
-        "subcontract",
-        "emergency funding",
-        "discretionary",
-        "unallocated",
-        "reimbursement",
-        "pilot project",
-        "startup costs",
-        "overhead",
-        "third-party",
-        "newly established",
-        "emerging organization",
-        "grassroots",
-        "rapid deployment",
-        "seed funding",
-        "non-competitive",
-        "sole source",
-        "humanitarian aid",
-        "foreign assistance",
-        "advocacy",
-    ]
+    """
+    Define specific keywords for initial contract download (case-insensitive)
+    Always use the main list which is defined as the sum of all lists.
+
+    Returns:
+        Compiled regex pattern for matching keywords
+    """
+    if not keywords:
+        logger.error("Failed to import keywords from keywords.py")
+        return None
+
+    keywords_list = keywords["main"]
+    logger.info(f"Using {len(keywords_list)} keywords from 'main' category")
 
     # Create a regex pattern to match whole words or phrases
     pattern = re.compile(
-        r"\b" + "|".join([re.escape(kw) for kw in keywords]) + r"\b", re.IGNORECASE
+        r"\b" + "|".join([re.escape(kw) for kw in keywords_list]) + r"\b", re.IGNORECASE
     )
     return pattern
 

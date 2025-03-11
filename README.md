@@ -60,7 +60,7 @@ poetry run python -m src.waste-finder.orchestration.orchestrator --departments "
 ### 4. Filter Contracts
 
 ```bash
-poetry run python -m src.waste-finder.data.filter_contracts --input-dir ./processed_data/ --output-dir ./filtered_data/ --min-amount 1000000
+poetry run python -m src.waste-finder.data.filter_contracts --input-dir ./processed_data/ --output-dir ./filtered_data/ --min-amount 1000000 --keyword-type waste
 ```
 
 ### 5. Analyze Contract Data
@@ -123,6 +123,7 @@ poetry run python -m src.waste-finder.orchestration.fraud_poster --file ./llm_an
 --min-amount          Minimum contract amount to include (default: 500000)
 --combine             Combine all filtered results into one file (default: True)
 --award-type          Type of award to filter (default: None, processes all types)
+--keyword-type        Type of keywords to use (default: waste)
 ```
 
 ### CSV Analyzer Arguments
@@ -229,7 +230,7 @@ poetry run python -m src.waste-finder.data.transform_data --dept-name "Departmen
 
 3. **Filter contracts by amount**:
 ```bash
-poetry run python -m src.waste-finder.data.filter_contracts --min-amount 1000000
+poetry run python -m src.waste-finder.data.filter_contracts --min-amount 1000000 --keyword-type waste
 ```
 
 4. **Analyze filtered contracts**:
@@ -288,6 +289,7 @@ src/waste-finder/
 │
 ├── core/                        # Core functionality
 │   ├── __init__.py
+│   ├── keyword.py               # Keyword definitions for filtering
 │   ├── base_llm.py              # Base LLM functionality
 │   └── prompt.py                # Prompt templates
 │

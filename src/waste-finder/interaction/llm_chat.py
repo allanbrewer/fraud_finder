@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-import os
 import logging
 import json
 import sys
 import argparse
-import time
 from dotenv import load_dotenv
 
 # Configure logging
