@@ -1,6 +1,7 @@
 """Service to download and analyze active contracts from USAspending.gov for waste detection"""
 
 __version__ = "0.1.0"
+__license__ = "CC BY-NC 4.0"
 
 import logging
 
@@ -17,3 +18,9 @@ logger.setLevel(logging.INFO)
 
 # Log startup message
 logging.info("Starting waste finder service...")
+
+# Import key components for easier access
+from .core import BaseLLM, prompts
+from .analysis import CSVAnalyzer, JSONAnalyzer
+from .interaction import LLMChat, TwitterPoster
+from .orchestration import FraudPoster, run_orchestrator

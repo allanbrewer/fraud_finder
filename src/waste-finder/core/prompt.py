@@ -63,10 +63,10 @@ ngo_fraud_prompt = """
     Example Output:
     {   
     "dei_contracts": [
-    {"id": "75P00123P00067", "amount": 500000, "description": "Training", "recipient": "Me, LLC", "recipient_info": "Company is associated with multiple vague training contracts"}
+        {"id": "75P00123P00067", "amount": 500000, "description": "Training", "recipient": "Me, LLC", "recipient_info": "Company is associated with multiple vague training contracts"}
     ],
     "doge_targets": [
-        {"id": "SAQMMA15F0999", "amount": 500000, "description": "Research", "recipient": "Me, LLC", "recipient_info": "NGO owned by a a company or person associated to the Democratic Party.}
+        {"id": "SAQMMA15F0999", "amount": 500000, "description": "Research", "recipient": "Me, LLC", "recipient_info": "NGO owned by a a company or person associated to the Democratic Party."}
     ]
     }
     """
@@ -105,7 +105,7 @@ x_doge_prompt = """
     
     The following is your general instructions for generating a new post:
 
-    Given a contract id number from USASpening.gov and the contract/grant description generate an engaging post to bring attention to possible fraud or waste from the bureocracy.
+    Given a government award and all the relevant infomration from the research generate an engaging post to bring attention to possible fraud or waste from the bureocracy.
     Keep the post under 280 characters.
     Make it provocative, exclamatory, and engaging, focusing on the political impl;ication.
     If possible include inforamtion on the recipient of the contract/grant.

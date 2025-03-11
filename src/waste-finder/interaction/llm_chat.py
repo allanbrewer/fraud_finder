@@ -1,60 +1,50 @@
 #!/usr/bin/env python3
 import os
-import argparse
 import logging
 import json
 import sys
-from datetime import datetime
+import argparse
+import time
 from dotenv import load_dotenv
 
 # Try to import base_llm from different possible paths
 try:
-    from src.waste_finder.base_llm import BaseLLM
+    from src.waste_finder.core.base_llm import BaseLLM
 except ImportError:
     try:
-        from waste_finder.base_llm import BaseLLM
+        from waste_finder.core.base_llm import BaseLLM
     except ImportError:
         try:
-            from .base_llm import BaseLLM
+            from ..core.base_llm import BaseLLM
         except ImportError:
             raise ImportError(
                 "Could not import BaseLLM. Check your python path and file structure."
             )
+
+# Import the prompts from prompt.py
+try:
+    from src.waste_finder.core.prompt import prompts
+    logger.info(f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}")
+except ImportError:
+    try:
+        from waste_finder.core.prompt import prompts
+        logger.info(f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}")
+    except ImportError:
+        try:
+            from ..core.prompt import prompts
+            logger.info(f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}")
+        except ImportError:
+            logger.error("Failed to import prompts from prompt.py")
+            prompts = {
+                "dei": "Analyze this contract data for DEI spending...",
+                "ngo_fraud": "Analyze this contract data for NGO fraud..."
+            }
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
-
-# Import the prompt from prompt.py
-try:
-    from src.waste_finder.prompt import prompts
-
-    logger.info(
-        f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}"
-    )
-except ImportError:
-    try:
-        from waste_finder.prompt import prompts
-
-        logger.info(
-            f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}"
-        )
-    except ImportError:
-        try:
-            from .prompt import prompts
-
-            logger.info(
-                f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}"
-            )
-        except ImportError:
-            logger.error("Failed to import prompts from prompt.py")
-            prompts = {
-                "dei": "You are a contract analysis expert specialized in identifying diversity, equity, and inclusion (DEI) contracts. Focus on contracts that mention diversity, inclusion, equity, race, gender, or related concepts.",
-                "ngo_fraud": "You are a contract analysis expert specialized in identifying potential fraud in NGO government contracts. Look for unusual patterns, inflated costs, vague descriptions, or red flags.",
-            }
-
 
 class LLMChat(BaseLLM):
     """Class for interactive chat with LLM APIs"""

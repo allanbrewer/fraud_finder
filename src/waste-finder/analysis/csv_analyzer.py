@@ -11,13 +11,13 @@ from dotenv import load_dotenv
 
 # Try to import base_llm from different possible paths
 try:
-    from src.waste_finder.base_llm import BaseLLM
+    from src.waste_finder.core.base_llm import BaseLLM
 except ImportError:
     try:
-        from waste_finder.base_llm import BaseLLM
+        from waste_finder.core.base_llm import BaseLLM
     except ImportError:
         try:
-            from .base_llm import BaseLLM
+            from ..core.base_llm import BaseLLM
         except ImportError:
             raise ImportError(
                 "Could not import BaseLLM. Check your python path and file structure."
@@ -29,24 +29,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Import the prompt from prompt.py
+# Import the prompts from prompt.py
 try:
-    from src.waste_finder.prompt import prompts
-
+    from src.waste_finder.core.prompt import prompts
     logger.info(
         f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}"
     )
 except ImportError:
     try:
-        from waste_finder.prompt import prompts
-
+        from waste_finder.core.prompt import prompts
         logger.info(
             f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}"
         )
     except ImportError:
         try:
-            from .prompt import prompts
-
+            from ..core.prompt import prompts
             logger.info(
                 f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}"
             )
