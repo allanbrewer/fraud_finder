@@ -32,18 +32,21 @@ logger = logging.getLogger(__name__)
 # Import the prompts from prompt.py
 try:
     from src.waste_finder.core.prompt import prompts
+
     logger.info(
         f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}"
     )
 except ImportError:
     try:
         from waste_finder.core.prompt import prompts
+
         logger.info(
             f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}"
         )
     except ImportError:
         try:
             from ..core.prompt import prompts
+
             logger.info(
                 f"Successfully imported prompts from prompt.py: {', '.join(prompts.keys())}"
             )
@@ -86,14 +89,16 @@ class CSVAnalyzer(BaseLLM):
             logger.error(f"Error preparing CSV data: {str(e)}")
             return None
 
-    def create_prompt_with_data(self, csv_data, custom_prompt=None, prompt_type="dei"):
+    def create_prompt_with_data(
+        self, csv_data, custom_prompt=None, prompt_type="ngo_fraud"
+    ):
         """
         Create prompt with CSV data
 
         Args:
             csv_data: CSV data to include in prompt
             custom_prompt: Custom prompt to use
-            prompt_type: Type of prompt to use (default: dei)
+            prompt_type: Type of prompt to use (default: ngo_fraud)
 
         Returns:
             Complete prompt with CSV data
@@ -104,7 +109,7 @@ class CSVAnalyzer(BaseLLM):
         elif prompt_type in prompts:
             instruction = prompts[prompt_type]
         else:
-            instruction = prompts["dei"]  # Default to DEI prompt
+            instruction = prompts["ngo_fraud"]  # Default to NGO Fraud prompt
 
         # Create complete prompt with CSV data
         complete_prompt = f"{instruction}\n\nHere is the CSV data:\n\n{csv_data}"
@@ -198,7 +203,7 @@ class CSVAnalyzer(BaseLLM):
         system_message=None,
         description=None,
         memory_query=None,
-        prompt_type="dei",
+        prompt_type="ngo_fraud",
     ):
         """
         Analyze CSV file using LLM
@@ -211,7 +216,7 @@ class CSVAnalyzer(BaseLLM):
             system_message: Optional system message to include
             description: Optional description to include in the system message
             memory_query: Optional query to use for retrieving memories
-            prompt_type: Type of prompt to use (default: dei)
+            prompt_type: Type of prompt to use (default: ngo_fraud)
 
         Returns:
             Analysis results as JSON object
@@ -287,7 +292,7 @@ class CSVAnalyzer(BaseLLM):
         system_message=None,
         description=None,
         memory_query=None,
-        prompt_type="dei",
+        prompt_type="ngo_fraud",
     ):
         """
         Analyze multiple CSV files
@@ -300,7 +305,7 @@ class CSVAnalyzer(BaseLLM):
             system_message: Optional system message to include
             description: Optional description to include in the system message
             memory_query: Optional query to use for retrieving memories
-            prompt_type: Type of prompt to use (default: dei)
+            prompt_type: Type of prompt to use (default: ngo_fraud)
 
         Returns:
             Dictionary of results by filename
@@ -381,9 +386,9 @@ def main():
     )
     parser.add_argument(
         "--prompt-type",
-        default="dei",
+        default="ngo_fraud",
         choices=prompts.keys(),
-        help=f"Type of prompt to use (default: dei, available: {', '.join(prompts.keys())})",
+        help=f"Type of prompt to use (default: ngo_fraud, available: {', '.join(prompts.keys())})",
     )
 
     # Common arguments for LLM configuration

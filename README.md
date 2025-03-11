@@ -58,31 +58,49 @@ TWITTER_ACCESS_TOKEN_SECRET='your_access_token_secret'
 ### 1. Download Contracts Data
 
 ```bash
-poetry run python -m src.waste-finder.download_contracts --max-contracts 1000 --fiscal-year 2023 --save-dir ./contract_data
+poetry run python -m src.waste-finder.download_contracts --department "Department of Energy" --start-date "2024-01-01"
 ```
 
 ### 2. Transform Contract Data
 
 ```bash
-poetry run python -m src.waste-finder.transform_data --input ./contract_data --output ./transformed_data
+poetry run python -m src.waste-finder.transform_data --dept-name "Department of Energy" --dept-acronym "DOE"
 ```
 
-### 3. Analyze Contract Data
+### 3. Data Orchestrator
 
 ```bash
-poetry run python -m src.waste-finder.csv_analyzer ./transformed_data/ --output-dir ./llm_analysis --prompt-type ngo_fraud --user-id default_user
+poetry run python -m src.waste-finder.orchestrator --departments "Department of Energy" --start-date "2024-01-01" --skip-download --process-existing
 ```
 
-### 4. Chat with LLM
+### 4. Analyze Contract Data
+
+```bash
+poetry run python -m src.waste-finder.csv_analyzer ./processed_data/ --prompt-type ngo_fraud --user-id default_user
+```
+
+### 5. Chat with LLM
 
 ```bash
 poetry run python -m src.waste-finder.llm_chat --interactive --prompt-type ngo_fraud --user-id default_user
 ```
 
-### 5. Run Complete Pipeline
+### 6. Analyze JSON Data
 
 ```bash
-poetry run python -m src.waste-finder.orchestrator --max-contracts 100 --fiscal-year 2024 --prompt-type ngo_fraud --user-id default_user
+poetry run python -m src.waste-finder.json_analyzer ./llm_analysis/ --user-id default_user
+```
+
+### 7. Twitter Poster
+
+```bash
+poetry run python -m src.waste-finder.twitter_poster json ./posts/post.json
+```
+
+### 8. Run JSON and Twitter Orchestrator
+
+```bash
+poetry run python -m src.waste-finder.fraud_poster --file ./llm_analysis/file.json --user-id default_user
 ```
 
 ## Command-Line Arguments
@@ -209,16 +227,35 @@ The system includes multiple prompt types that can be selected:
 
 ```
 src/waste-finder/
-├── __init__.py              # Package initialization
-├── download_contracts.py    # Download contract data from USAspending.gov
-├── transform_data.py        # Transform contract data
-├── base_llm.py              # Base LLM class with shared functionality
-├── csv_analyzer.py          # CSV file analyzer using LLM
-├── llm_chat.py              # Interactive chat with LLM
-├── json_analyzer.py         # JSON file analyzer for generating X posts
-├── twitter_poster.py        # Module for posting to Twitter/X
-├── fraud_poster.py          # Orchestrator to analyze and post findings
-└── orchestrator.py          # End-to-end orchestration
+│
+├── __init__.py                  # Main package initialization
+│
+├── core/                        # Core functionality
+│   ├── __init__.py
+│   ├── base_llm.py              # Base LLM functionality
+│   └── prompt.py                # Prompt templates
+│
+├── data/                        # Data acquisition and processing
+│   ├── __init__.py
+│   ├── download_contracts.py    # Download contract data
+│   ├── transform_data.py        # Transform contract data
+│   └── filter_contracts.py      # Filter contract data
+│
+├── analysis/                    # Analysis modules
+│   ├── __init__.py
+│   ├── csv_analyzer.py          # CSV file analysis
+│   └── json_analyzer.py         # JSON file analysis
+│
+├── interaction/                 # User/external system interaction
+│   ├── __init__.py
+│   ├── llm_chat.py              # Interactive chat functionality
+│   └── twitter_poster.py        # Twitter posting functionality
+│
+└── orchestration/               # Process orchestration
+    ├── __init__.py
+    ├── orchestrator.py          # Main orchestration for analysis pipeline
+    └── fraud_poster.py          # Orchestration for posting findings
+
 ```
 
 ## Twitter Integration Setup
@@ -235,25 +272,3 @@ TWITTER_ACCESS_TOKEN_SECRET='your_access_token_secret'
 ```
 
 You can obtain these credentials by creating a Twitter Developer account and setting up a Twitter App with OAuth 1.0a authentication.
-
-## Example Workflow
-
-1. **Analyze CSV files to identify suspicious grants:**
-   ```bash
-   poetry run python -m src.waste-finder.csv_analyzer ./data/transformed.csv --output-dir ./results --prompt-type ngo_fraud
-   ```
-
-2. **Generate X/Twitter posts from JSON analysis files:**
-   ```bash
-   poetry run python -m src.waste-finder.json_analyzer ./results/transformed_analysis.json --output-file ./posts/post.json
-   ```
-
-3. **Post findings to Twitter/X:**
-   ```bash
-   poetry run python -m src.waste-finder.twitter_poster json ./posts/post.json
-   ```
-
-4. **Or use the fraud_poster to do all steps at once:**
-   ```bash
-   poetry run python -m src.waste-finder.fraud_poster --file ./results/transformed_analysis.json --output-dir ./posts
-   ```
