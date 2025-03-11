@@ -2,9 +2,11 @@
 import os
 import logging
 import argparse
+import sys
 from datetime import datetime
 import json
 import glob
+import time
 
 # Configure logging
 logging.basicConfig(
@@ -225,7 +227,21 @@ def main(
     skip_download=False,
     process_existing=False,
 ):
-    """Main function to orchestrate the entire workflow"""
+    """
+    Main orchestration function for the waste finder service
+
+    Args:
+        departments: List of departments to process
+        award_types: List of award types to process
+        start_date: Start date for contracts
+        end_date: End date for contracts
+        output_dir: Base directory for output files
+        skip_download: Skip downloading and use existing files
+        process_existing: Process all existing downloaded data
+
+    Returns:
+        Exit code (0 for success, 1 for error)
+    """
     # Create output directory
     os.makedirs(output_dir, exist_ok=True)
 
@@ -276,13 +292,12 @@ def main(
 
     logger.info(f"Processing complete! Summary saved to {summary_file}")
 
-    return results
+    return 0  # Return success code if everything completed
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Orchestrate the download and processing of contract data"
-    )
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Orchestrate the waste finder service")
     parser.add_argument(
         "--departments",
         nargs="+",
@@ -326,12 +341,15 @@ if __name__ == "__main__":
     if args.skip_download and args.process_existing:
         parser.error("Cannot use both --skip-download and --process-existing together")
 
-    main(
-        args.departments,
-        args.award_types,
-        args.start_date,
-        args.end_date,
-        args.output_dir,
-        args.skip_download,
-        args.process_existing,
+    # Call main function and exit with its return code
+    sys.exit(
+        main(
+            args.departments,
+            args.award_types,
+            args.start_date,
+            args.end_date,
+            args.output_dir,
+            args.skip_download,
+            args.process_existing,
+        )
     )

@@ -5,8 +5,8 @@ import re
 import argparse
 import logging
 from datetime import datetime
-import glob
 import json
+import sys
 
 # Configure logging
 logging.basicConfig(
@@ -385,7 +385,7 @@ def main(
         award_type: Type of award to filter ('procurement', 'grant', or None for both)
 
     Returns:
-        List of filtered file paths
+        Exit code (0 for success, 1 for error)
     """
     logger.info(f"Starting advanced filtering with minimum amount: ${min_amount:,}")
 
@@ -397,7 +397,7 @@ def main(
 
     if not filtered_files:
         logger.warning("No files passed the filtering criteria")
-        return []
+        return 1
 
     logger.info(f"Created {len(filtered_files)} filtered files")
 
@@ -406,8 +406,11 @@ def main(
         combined_path = combine_filtered_files(filtered_files, output_dir)
         if combined_path:
             logger.info(f"All filtered contracts combined into {combined_path}")
+        else:
+            logger.warning("Failed to combine filtered files")
+            return 1
 
-    return filtered_files
+    return 0
 
 
 if __name__ == "__main__":
@@ -443,10 +446,12 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(
-        args.input_dir,
-        args.output_dir,
-        args.min_amount,
-        not args.no_combine,
-        args.award_type,
+    sys.exit(
+        main(
+            args.input_dir,
+            args.output_dir,
+            args.min_amount,
+            not args.no_combine,
+            args.award_type,
+        )
     )

@@ -6,6 +6,7 @@ import json
 import time
 import argparse
 import logging
+import sys
 
 # Configure logging
 logging.basicConfig(
@@ -192,8 +193,24 @@ def create_date_ranges(start_date_str, end_date_str, interval_months=3):
     return date_ranges
 
 
-def main(department, sub_award_type="procurement", start_date=None, end_date=None):
-    """Download contract data for a specific department and award type"""
+def main(
+    department,
+    sub_award_type="procurement",
+    start_date=None,
+    end_date=None,
+):
+    """
+    Main function to download contract data from USA Spending API
+    
+    Args:
+        department: Department to download
+        sub_award_type: Type of award to download (procurement or grant)
+        start_date: Start date in YYYY-MM-DD format
+        end_date: End date in YYYY-MM-DD format
+        
+    Returns:
+        Exit code (0 for success, 1 for error)
+    """
     # Set default end date to today in UTC if not provided
     if end_date is None:
         end_date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
@@ -242,12 +259,17 @@ def main(department, sub_award_type="procurement", start_date=None, end_date=Non
         still_missing = check_and_download_missing(file_urls, successful_downloads)
         if still_missing:
             logging.error(f"Couldn't recover these: {still_missing}")
+            return 1
         else:
             logging.info("All missing files recovered!")
     else:
         logging.info("\nAll files downloaded successfully!")
 
-    return successful_downloads
+    if successful_downloads:
+        return 0
+    else:
+        logging.error("No files were successfully downloaded")
+        return 1
 
 
 if __name__ == "__main__":
@@ -274,4 +296,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(args.department, args.sub_award_type, args.start_date, args.end_date)
+    sys.exit(main(args.department, args.sub_award_type, args.start_date, args.end_date))

@@ -6,6 +6,7 @@ import logging
 import argparse
 import zipfile
 import shutil
+import sys
 
 # Configure logging
 logging.basicConfig(
@@ -74,6 +75,45 @@ def setup_keywords():
         "accountability",
         "male circumcision",
         "membership",
+        "consulting services",
+        "program support",
+        "general support",
+        "capacity building",
+        "technical assistance",
+        "management services",
+        "administrative support",
+        "operational costs",
+        "strategic planning",
+        "miscellaneous expenses",
+        "innovation",
+        "sustainability",
+        "community development",
+        "outreach",
+        "engagement",
+        "awareness",
+        "partnership",
+        "collaboration",
+        "initiatives",
+        "pass-through",
+        "subcontract",
+        "emergency funding",
+        "discretionary",
+        "unallocated",
+        "reimbursement",
+        "pilot project",
+        "startup costs",
+        "overhead",
+        "third-party",
+        "newly established",
+        "emerging organization",
+        "grassroots",
+        "rapid deployment",
+        "seed funding",
+        "non-competitive",
+        "sole source",
+        "humanitarian aid",
+        "foreign assistance",
+        "advocacy",
     ]
 
     # Create a regex pattern to match whole words or phrases
@@ -352,10 +392,21 @@ def main(
     dept_acronym=None,
     sub_award_type="procurement",
 ):
-    """Process zip files for a specific department and award type"""
+    """Process zip files for a specific department and award type
+
+    Args:
+        zip_dir: Directory containing zip files
+        output_dir: Directory for output files
+        dept_name: Department name as used in the API
+        dept_acronym: Department acronym for file naming
+        sub_award_type: Type of award to process
+
+    Returns:
+        Exit code (0 for success, 1 for error)
+    """
     if not dept_name or not dept_acronym:
         logger.error("Department name and acronym must be provided")
-        return None
+        return 1
 
     # Set output directory
     if not output_dir:
@@ -376,7 +427,7 @@ def main(
 
     if not zip_files:
         logger.warning(f"No zip files found for {dept_name} ({sub_award_type})")
-        return None
+        return 1
 
     logger.info(f"Found {len(zip_files)} zip files for {dept_name} ({sub_award_type})")
 
@@ -385,7 +436,12 @@ def main(
         zip_files, dept_name, dept_acronym, sub_award_type, output_dir
     )
 
-    return master_file
+    if master_file:
+        logger.info(f"Successfully created master file: {master_file}")
+        return 0
+    else:
+        logger.warning("No master file was created")
+        return 1
 
 
 if __name__ == "__main__":
@@ -421,10 +477,12 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(
-        args.zip_dir,
-        args.output_dir,
-        args.dept_name,
-        args.dept_acronym,
-        args.sub_award_type,
+    sys.exit(
+        main(
+            args.zip_dir,
+            args.output_dir,
+            args.dept_name,
+            args.dept_acronym,
+            args.sub_award_type,
+        )
     )
