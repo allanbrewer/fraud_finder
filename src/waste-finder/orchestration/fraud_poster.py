@@ -154,11 +154,12 @@ class FraudPoster:
                 "success": False,
                 "error": "Failed to analyze JSON file",
             }
-            
+
         # Save analysis results if output directory is specified
         if analysis_dir:
             analysis_output_file = os.path.join(
-                analysis_dir, f"{os.path.basename(json_file).split('.')[0]}_analysis.json"
+                analysis_dir,
+                f"{os.path.basename(json_file).split('.')[0]}_analysis.json",
             )
             try:
                 with open(analysis_output_file, "w") as f:

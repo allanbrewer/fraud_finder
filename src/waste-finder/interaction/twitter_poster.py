@@ -285,12 +285,14 @@ class TwitterGenerator(BaseLLM):
         
         Format your response as a JSON object with 'text' and 'quote_tweet_id' fields.
         """
-        
+
         # Add context about the source list if available
         if "source_list" in grants_info:
             source_list = grants_info.get("source_list")
-            system_message += f"\n\nThis grant was identified as part of a '{source_list}' list."
-        
+            system_message += (
+                f"\n\nThis grant was identified as part of a '{source_list}' list."
+            )
+
         # Add context about other grants if available
         if "context" in grants_info:
             context = grants_info.get("context")
@@ -428,7 +430,7 @@ class TwitterGenerator(BaseLLM):
             with open(json_file, "r") as f:
                 data = json.load(f)
                 logger.info(f"Loaded data from {json_file}")
-            
+
             # Process the JSON data based on its structure
             if isinstance(data, dict):
                 # Check if it contains a list of targets under a key
@@ -436,28 +438,38 @@ class TwitterGenerator(BaseLLM):
                 for key, value in data.items():
                     if isinstance(value, list) and len(value) > 0:
                         target_lists.append((key, value))
-                
+
                 if target_lists:
                     # Use the first list found as our targets
                     list_name, targets = target_lists[0]
-                    logger.info(f"Using list '{list_name}' with {len(targets)} entries for post generation")
-                    
+                    logger.info(
+                        f"Using list '{list_name}' with {len(targets)} entries for post generation"
+                    )
+
                     # If there are multiple targets, select one or combine information
                     if len(targets) > 1:
-                        logger.info(f"Multiple targets found, selecting most interesting one for post")
+                        logger.info(
+                            f"Multiple targets found, selecting most interesting one for post"
+                        )
                         # Sort by amount (if available) to find the most expensive grant
                         sorted_targets = sorted(
-                            targets, 
-                            key=lambda x: float(x.get("amount", 0)) if isinstance(x.get("amount"), (int, float, str)) else 0,
-                            reverse=True
+                            targets,
+                            key=lambda x: (
+                                float(x.get("amount", 0))
+                                if isinstance(x.get("amount"), (int, float, str))
+                                else 0
+                            ),
+                            reverse=True,
                         )
                         selected_target = sorted_targets[0]
                         # Add context about other targets
-                        selected_target["context"] = f"This is one of {len(targets)} questionable grants totaling ${sum(float(t.get('amount', 0)) for t in targets if isinstance(t.get('amount'), (int, float, str)))}."
+                        selected_target["context"] = (
+                            f"This is one of {len(targets)} questionable grants totaling ${sum(float(t.get('amount', 0)) for t in targets if isinstance(t.get('amount'), (int, float, str)))}."
+                        )
                         grants_info = selected_target
                     else:
                         grants_info = targets[0]
-                    
+
                     # Add the list name for context
                     grants_info["source_list"] = list_name
                 else:
@@ -466,16 +478,24 @@ class TwitterGenerator(BaseLLM):
             elif isinstance(data, list):
                 # If it's a list, select the most interesting entry
                 if len(data) > 1:
-                    logger.info(f"Multiple entries found, selecting most interesting one for post")
+                    logger.info(
+                        f"Multiple entries found, selecting most interesting one for post"
+                    )
                     # Sort by amount (if available) to find the most expensive grant
                     sorted_data = sorted(
-                        data, 
-                        key=lambda x: float(x.get("amount", 0)) if isinstance(x.get("amount"), (int, float, str)) else 0,
-                        reverse=True
+                        data,
+                        key=lambda x: (
+                            float(x.get("amount", 0))
+                            if isinstance(x.get("amount"), (int, float, str))
+                            else 0
+                        ),
+                        reverse=True,
                     )
                     selected_entry = sorted_data[0]
                     # Add context about other entries
-                    selected_entry["context"] = f"This is one of {len(data)} questionable grants totaling ${sum(float(t.get('amount', 0)) for t in data if isinstance(t.get('amount'), (int, float, str)))}."
+                    selected_entry["context"] = (
+                        f"This is one of {len(data)} questionable grants totaling ${sum(float(t.get('amount', 0)) for t in data if isinstance(t.get('amount'), (int, float, str)))}."
+                    )
                     grants_info = selected_entry
                 else:
                     grants_info = data[0] if data else {}
