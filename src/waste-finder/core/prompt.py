@@ -12,6 +12,10 @@ dei_prompt = """
     For each:
     - Extract `award_id_piid`, `current_total_value_of_award`, `prime_award_base_transaction_description`, `period_of_performance_current_end_date` and `recipient_name`.
     - Flag if live: end date after March 2025.
+    - By analyzing the description of the award makea determination if we can consider this a DEI contract based on the use of DEI keywords.
+    - It is important to reduce the total number of contracts to only the ones we should focus our attention. 
+    - Only keep contracts that have a high probability of being part of DEI initiative based on the already canceled contracts from https://doge.gov/savings.
+    - If undecided best not to include the award in the `dei_contracts` list.
     - Summarize the description for each award but keep the keywords in the original text. Make them as short as possible.
     - Double check if the contract is live by using the https://www.fpds.gov/ ezSearch and review all modification to make determine if the contract has been terminated it. E.g. "terminted for convinience", "close out" or updated end date is before March 2025.
     - Output as two JSON lists: `dei_contracts` and `doge_targets`.
@@ -47,7 +51,7 @@ waste_prompt = """
     For each:
     - Extract `award_id_piid`, `current_total_value_of_award`, `prime_award_base_transaction_description`, `period_of_performance_current_end_date` and `recipient_name`.
     - Flag if live: end date after March 2025.
-    - By analyzing the description of the award makea determination if we can consider this a wasteful contract based on the use of vague words and vague outcomes.
+    - By analyzing the description of the award make a determination if we can consider this a wasteful contract based on the use of vague words and vague outcomes.
     - It is important to reduce the total number of contracts to only the ones we should focus our attention. 
     - Only keep contracts that have a high probability of waste based on the already canceled contracts from https://doge.gov/savings.
     - If undecided best not to include the award in the `doge_targets` list.
@@ -82,9 +86,13 @@ ngo_fraud_prompt = """
     
     For each:
     - Extract `award_id_fain`, `total_obligated_amount`, `prime_award_base_transaction_description`, `period_of_performance_current_end_date` and `recipient_name`.
+    - Flag if live: end date after March 2025.
+    - By analyzing the description of the award make a determination if we can consider this a fraudulent contract based on the use of vague words and vague outcomes.
+    - It is important to reduce the total number of contracts to only the ones we should focus our attention. 
+    - Only keep contracts that have a high probability of fraud based on the already canceled contracts from https://doge.gov/savings.
+    - If undecided best not to include the award in the `fraud_contracts` list.
     - Summarize the description for each award but keep the keywords in the original text. Make them as short as possible.
     - Double check if the grant is live by using the https://www.fpds.gov/ ezSearch and review all modification to make determine if the grant has been terminated it. E.g. "terminted for convinience", "close out" or updated end date is before March 2025.
-    - Flag if live: end date after March 2025.
     - Output as two JSON lists: `fraud_contracts` and `doge_targets` for others.
     - If a award is flagged for one list (`fraud_contracts` OR `doge_targets`) then it should not be added to the other list.
 
