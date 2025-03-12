@@ -67,33 +67,47 @@ if "prompts" in locals():
 class CSVAnalyzer(BaseLLM):
     """Class to analyze contract data from CSV files using LLM APIs"""
 
-    def prepare_csv_data(self, csv_file, max_rows=None):
+    def prepare_csv_data(self, csv_file, max_rows=None, start_row=0, batch_size=None):
         """
         Prepare CSV data for LLM analysis
 
         Args:
             csv_file: Path to CSV file
             max_rows: Maximum number of rows to include (None for all)
+            start_row: Starting row index for batch processing
+            batch_size: Number of rows to include in this batch
 
         Returns:
-            String representation of CSV data
+            String representation of CSV data and total number of rows
         """
         try:
             # Load CSV data
             df = pd.read_csv(csv_file)
-            logger.info(f"Loaded CSV with {len(df)} rows and {len(df.columns)} columns")
+            total_rows = len(df)
+            logger.info(
+                f"Loaded CSV with {total_rows} rows and {len(df.columns)} columns"
+            )
 
-            # Limit rows if specified
-            if max_rows and max_rows < len(df):
-                df = df.head(max_rows)
+            # Apply max_rows limit if specified
+            if max_rows and max_rows < total_rows:
+                df = df.iloc[:max_rows]
+                total_rows = len(df)
                 logger.info(f"Limited to {max_rows} rows")
+
+            # Apply batch processing if specified
+            if batch_size:
+                end_row = min(start_row + batch_size, total_rows)
+                df = df.iloc[start_row:end_row]
+                logger.info(
+                    f"Processing batch from row {start_row} to {end_row-1} ({len(df)} rows)"
+                )
 
             # Convert to string representation
             csv_string = df.to_string()
-            return csv_string
+            return csv_string, total_rows
         except Exception as e:
             logger.error(f"Error preparing CSV data: {str(e)}")
-            return None
+            return None, 0
 
     def create_prompt_with_data(
         self, csv_data, custom_prompt=None, prompt_type="waste"
@@ -213,6 +227,7 @@ class CSVAnalyzer(BaseLLM):
         description=None,
         memory_query=None,
         prompt_type="waste",
+        batch_size=75,
     ):
         """
         Analyze CSV file using LLM
@@ -226,15 +241,128 @@ class CSVAnalyzer(BaseLLM):
             description: Optional description to include in the system message
             memory_query: Optional query to use for retrieving memories
             prompt_type: Type of prompt to use (default: waste)
+            batch_size: Number of rows to process in each batch (default: 75)
 
         Returns:
             Analysis results as JSON object
         """
-        # Prepare CSV data
-        csv_data = self.prepare_csv_data(csv_file, max_rows)
+        # First check if the file exists
+        if not os.path.exists(csv_file):
+            logger.error(f"CSV file not found: {csv_file}")
+            return None
+
+        # Get total rows and prepare first batch
+        csv_data, total_rows = self.prepare_csv_data(csv_file, max_rows)
         if not csv_data:
             return None
 
+        # If total rows is less than batch size, process normally
+        if max_rows and max_rows <= batch_size:
+            return self._analyze_csv_single_batch(
+                csv_data,
+                custom_prompt,
+                output_file,
+                system_message,
+                description,
+                memory_query,
+                prompt_type,
+            )
+
+        # For larger files, process in batches
+        if total_rows > batch_size:
+            logger.info(
+                f"CSV has {total_rows} rows, processing in batches of {batch_size}"
+            )
+
+            # Initialize combined results
+            combined_results = {"doge_targets": []}
+
+            # Calculate effective total rows (considering max_rows limit)
+            effective_total = min(total_rows, max_rows) if max_rows else total_rows
+
+            # Process each batch
+            for start_row in range(0, effective_total, batch_size):
+                batch_end = min(start_row + batch_size, effective_total)
+                logger.info(
+                    f"Processing batch {start_row//batch_size + 1}: rows {start_row} to {batch_end-1}"
+                )
+
+                # Prepare batch data
+                batch_data, _ = self.prepare_csv_data(
+                    csv_file,
+                    max_rows=effective_total,
+                    start_row=start_row,
+                    batch_size=batch_size,
+                )
+
+                # Process this batch
+                batch_result = self._analyze_csv_single_batch(
+                    batch_data,
+                    custom_prompt,
+                    None,  # Don't save intermediate batches
+                    system_message,
+                    description,
+                    memory_query,
+                    prompt_type,
+                )
+
+                # Combine results
+                if batch_result and "doge_targets" in batch_result:
+                    combined_results["doge_targets"].extend(
+                        batch_result["doge_targets"]
+                    )
+                    logger.info(
+                        f"Added {len(batch_result['doge_targets'])} targets from batch {start_row//batch_size + 1}"
+                    )
+                else:
+                    logger.warning(
+                        f"No valid results from batch {start_row//batch_size + 1}"
+                    )
+
+            # Save combined results
+            if output_file and combined_results["doge_targets"]:
+                with open(output_file, "w") as f:
+                    json.dump(combined_results, f, indent=2)
+                logger.info(f"Combined analysis saved to {output_file}")
+
+            return combined_results
+
+        # If we get here, process normally as a single batch
+        return self._analyze_csv_single_batch(
+            csv_data,
+            custom_prompt,
+            output_file,
+            system_message,
+            description,
+            memory_query,
+            prompt_type,
+        )
+
+    def _analyze_csv_single_batch(
+        self,
+        csv_data,
+        custom_prompt=None,
+        output_file=None,
+        system_message=None,
+        description=None,
+        memory_query=None,
+        prompt_type="waste",
+    ):
+        """
+        Analyze a single batch of CSV data using LLM
+
+        Args:
+            csv_data: Prepared CSV data string
+            custom_prompt: Custom prompt to use
+            output_file: Path to save output JSON
+            system_message: Optional system message to include
+            description: Optional description to include in the system message
+            memory_query: Optional query to use for retrieving memories
+            prompt_type: Type of prompt to use (default: waste)
+
+        Returns:
+            Analysis results as JSON object
+        """
         # Create prompt
         complete_prompt = self.create_prompt_with_data(
             csv_data, custom_prompt, prompt_type
@@ -302,6 +430,7 @@ class CSVAnalyzer(BaseLLM):
         description=None,
         memory_query=None,
         prompt_type="waste",
+        batch_size=75,
     ):
         """
         Analyze multiple CSV files
@@ -315,6 +444,7 @@ class CSVAnalyzer(BaseLLM):
             description: Optional description to include in the system message
             memory_query: Optional query to use for retrieving memories
             prompt_type: Type of prompt to use (default: waste)
+            batch_size: Number of rows to process in each batch (default: 75)
 
         Returns:
             Dictionary of results by filename
@@ -350,6 +480,7 @@ class CSVAnalyzer(BaseLLM):
                 description,
                 memory_query,
                 prompt_type,
+                batch_size,
             )
 
             # Add result to dictionary
@@ -432,6 +563,12 @@ def main():
         default="default_user",
         help="User ID for memory operations (default: default_user)",
     )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=75,
+        help="Number of rows to process in each batch (default: 75)",
+    )
 
     # Parse arguments
     args = parser.parse_args()
@@ -460,6 +597,7 @@ def main():
         args.description,
         args.memory_query,
         args.prompt_type,
+        args.batch_size,
     )
 
     # Print results
