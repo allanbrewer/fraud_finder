@@ -46,7 +46,7 @@ class BaseLLM:
         # Set default model based on provider
         if model is None:
             if self.provider == "openai":
-                self.model = "gpt-4o-mini"
+                self.model = "gpt-4o"
             elif self.provider == "anthropic":
                 self.model = "claude-3-7-sonnet-latest"
             elif self.provider == "xai":
