@@ -78,22 +78,14 @@ poetry run python -m src.waste-finder.interaction.llm_chat --interactive --promp
 ### 7. Analyze JSON Data
 
 ```bash
-poetry run python -m src.waste-finder.analysis.json_analyzer ./llm_analysis/ --user-id default_user
+poetry run python -m src.waste-finder.analysis.json_analyzer ./llm_analysis/waste_procurement/file.json --award-type procurement --user-id default_user
 ```
-
-The JSON analyzer now supports analyzing files with lists of targets under various keys (e.g., "doge_targets"). It will process entries from these lists and allows for flexibility in naming.
 
 ### 8. Twitter Poster
 
 ```bash
 poetry run python -m src.waste-finder.interaction.twitter_poster json ./posts/post.json
 ```
-
-The Twitter poster has been refactored into two components:
-- `TwitterPoster`: Handles the actual posting to Twitter
-- `TwitterGenerator`: Generates post content from JSON data
-
-The TwitterGenerator now supports the new JSON format with lists of targets and will automatically select the most interesting entry for posting.
 
 ### 9. Run JSON and Twitter Orchestrator
 
@@ -173,8 +165,6 @@ csv_file              Path to CSV file or directory with grant data to analyze
 ```
 json_file             Path to JSON file with grant data to analyze
 --output-dir          Directory to save output files (default: llm_analysis)
---prompt-type         Type of prompt to use (default: x_doge)
---no-research         Skip researching entities in the grant data
 --award-type          Type of award to analyze (optional)
 --provider            LLM provider to use (default: xai)
 --model               Model to use (default depends on provider)

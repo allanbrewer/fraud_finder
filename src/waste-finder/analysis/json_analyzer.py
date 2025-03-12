@@ -86,17 +86,17 @@ class JSONAnalyzer(BaseLLM):
             String containing research information about the entity
         """
         # Create a system message that instructs the LLM to research the entity
-        system_message = """You are a government waste investigator researching entities that receive government grants.
+        system_message = """You are a government waste investigator researching entities that receive government awards.
         
         Use sources like USASpending.gov, fpds.gov, and other federal government databases to research the entity.
 
-        Also look into company/NGO registation records online to get all available information.
+        Also look into the entity registation records online to get all available information.
 
         Look for:
         - News articles, affiliations, or reports indicating fraudulent activity, shell company traits, or conflicts of interest.
         - Red flags such as:
           - Lack of transparency (e.g., no website, minimal public info).
-          - Sudden receipt of large grants with no prior track record.
+          - Sudden receipt of large awards with no prior track record.
           - Connections to known fraudulent entities or individuals.
           - Recent formation with no clear mission or activity history.
           - Leadership with conflicts of interest (e.g., ties to awarding agency).
@@ -109,8 +109,8 @@ class JSONAnalyzer(BaseLLM):
         3. Any controversies or questionable practices
         4. Political affiliations or connections
         5. Recent news or developments
-        6. What other activity do they do for the federal government
-        7. Have they recieved additional grants and what are they
+        6. What other activities do they do for the federal government
+        7. Have they recieved additional awards and what are they
         
         Format your response as a brief research report with key facts only.
         """
@@ -118,7 +118,7 @@ class JSONAnalyzer(BaseLLM):
         # Create a prompt to research the entity
         prompt = f"Research the following entity that recieved an award with the following details:\n{json.dumps(award_data, indent=2)}"
 
-        logger.info(f"Researching entity: {award_data['recipient_name']}")
+        logger.info(f"Researching award: \n{json.dumps(award_data, indent=2)}")
 
         if self.provider == "openai":
             response_text = self.call_openai_api(prompt, system_message)
@@ -136,7 +136,6 @@ class JSONAnalyzer(BaseLLM):
         self,
         json_file,
         award_type=None,
-        research_entities=True,
         output_dir="llm_analysis",
     ):
         """
@@ -145,7 +144,6 @@ class JSONAnalyzer(BaseLLM):
         Args:
             json_file: Path to JSON file with contract data
             award_type: Type of award (procurement, grant, etc.)
-            research_entities: Whether to research the entities found in the JSON
             output_dir: Directory to save research results
 
         Returns:
@@ -176,7 +174,7 @@ class JSONAnalyzer(BaseLLM):
                             f"Processing list '{list_name}' with {len(targets)} entries"
                         )
                         results = self._process_multiple_entries(
-                            targets, award_type, research_entities, output_dir
+                            targets, award_type, output_dir
                         )
                         if results:
                             # Add the list name to each result for reference
@@ -188,15 +186,11 @@ class JSONAnalyzer(BaseLLM):
                 else:
                     # No lists found, process as a single entry
                     logger.info("Processing JSON as a single entry")
-                    return self._process_single_entry(
-                        data, award_type, research_entities, output_dir
-                    )
+                    return self._process_single_entry(data, award_type, output_dir)
             elif isinstance(data, list):
                 # Process as multiple entries directly
                 logger.info(f"Processing JSON as a list with {len(data)} entries")
-                return self._process_multiple_entries(
-                    data, award_type, research_entities, output_dir
-                )
+                return self._process_multiple_entries(data, award_type, output_dir)
             else:
                 logger.error(f"Unsupported data type: {type(data)}")
                 return None
@@ -204,16 +198,13 @@ class JSONAnalyzer(BaseLLM):
             logger.error(f"Error analyzing JSON data: {str(e)}")
             return None
 
-    def _process_single_entry(
-        self, data, award_type=None, research_entities=True, output_dir=None
-    ):
+    def _process_single_entry(self, data, award_type=None, output_dir=None):
         """
         Process a single grant entry from a dictionary
 
         Args:
             data: Dictionary containing grant data
             award_type: Type of award (procurement, grant, etc.)
-            research_entities: Whether to research entities
             output_dir: Directory to save research results
 
         Returns:
@@ -227,7 +218,7 @@ class JSONAnalyzer(BaseLLM):
             grants_info["award_type"] = award_type
 
         # Research entity if required
-        if research_entities and "recipient_name" in grants_info:
+        if "recipient_name" in grants_info:
             entity_research = self.research_entity(grants_info)
             grants_info["entity_research"] = entity_research
 
@@ -237,16 +228,13 @@ class JSONAnalyzer(BaseLLM):
 
         return grants_info
 
-    def _process_multiple_entries(
-        self, data, award_type=None, research_entities=True, output_dir=None
-    ):
+    def _process_multiple_entries(self, data, award_type=None, output_dir=None):
         """
         Process multiple grant entries from a list
 
         Args:
             data: List containing grant data entries
             award_type: Type of award (procurement, grant, etc.)
-            research_entities: Whether to research entities
             output_dir: Directory to save research results
 
         Returns:
@@ -264,7 +252,7 @@ class JSONAnalyzer(BaseLLM):
                     grant_info["award_type"] = award_type
 
                 # Research entity if required
-                if research_entities and "recipient_name" in grant_info:
+                if "recipient_name" in grant_info:
                     entity_research = self.research_entity(grant_info)
                     grant_info["entity_research"] = entity_research
 
@@ -423,13 +411,6 @@ def main():
         help="Type of award (procurement, grant, etc.)",
     )
 
-    # Add no-research flag
-    parser.add_argument(
-        "--no-research",
-        action="store_true",
-        help="Skip researching entities in the grant data",
-    )
-
     # Common arguments for LLM configuration
     parser.add_argument(
         "--provider",
@@ -489,7 +470,6 @@ def main():
     result = analyzer.analyze_json(
         json_file=args.json_file,
         award_type=args.award_type,
-        research_entities=not args.no_research,
         output_dir=args.output_dir,
     )
 
