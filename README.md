@@ -81,17 +81,27 @@ poetry run python -m src.waste-finder.interaction.llm_chat --interactive --promp
 poetry run python -m src.waste-finder.analysis.json_analyzer ./llm_analysis/ --user-id default_user
 ```
 
+The JSON analyzer now supports analyzing files with lists of targets under various keys (e.g., "doge_targets"). It will process entries from these lists and allows for flexibility in naming.
+
 ### 8. Twitter Poster
 
 ```bash
 poetry run python -m src.waste-finder.interaction.twitter_poster json ./posts/post.json
 ```
 
+The Twitter poster has been refactored into two components:
+- `TwitterPoster`: Handles the actual posting to Twitter
+- `TwitterGenerator`: Generates post content from JSON data
+
+The TwitterGenerator now supports the new JSON format with lists of targets and will automatically select the most interesting entry for posting.
+
 ### 9. Run JSON and Twitter Orchestrator
 
 ```bash
 poetry run python -m src.waste-finder.orchestration.fraud_poster --file ./llm_analysis/file.json --user-id default_user
 ```
+
+The Fraud Poster orchestrator has been updated to coordinate between the new JSON analyzer and Twitter components, handling both single entries and lists of targets.
 
 ## Command-Line Arguments
 
@@ -162,9 +172,10 @@ csv_file              Path to CSV file or directory with grant data to analyze
 
 ```
 json_file             Path to JSON file with grant data to analyze
---output-file         Path to save output JSON with post content
+--output-dir          Directory to save output files (default: llm_analysis)
 --prompt-type         Type of prompt to use (default: x_doge)
 --no-research         Skip researching entities in the grant data
+--award-type          Type of award to analyze (optional)
 --provider            LLM provider to use (default: xai)
 --model               Model to use (default depends on provider)
 --temperature         Temperature for response generation (default: 0.7)
@@ -173,14 +184,29 @@ json_file             Path to JSON file with grant data to analyze
 --user-id             User ID for memory operations (default: default_user)
 ```
 
+The JSON analyzer now supports processing JSON files with different structures:
+- Single grant entry as a dictionary
+- Multiple grant entries as a list
+- Dictionary with lists of targets under various keys (e.g., "doge_targets")
+
 ### Twitter Poster Arguments
 
 ```
-mode                  Mode to use: 'text' or 'json'
-content               Text to post or path to JSON file with post content
---quote-tweet-id      ID of tweet to quote (optional)
+command               Command to execute: 'post', 'json', or 'generate'
+content               Text to post, path to JSON file with post content, or path to grant data JSON
+--quote-id            ID of tweet to quote (optional, for 'post' command)
+--output-file         Path to save generated post (for 'generate' command)
+--prompt-type         Type of prompt to use (default: x_doge, for 'generate' command)
+--provider            LLM provider to use (default: xai, for 'generate' command)
+--model               Model to use (default depends on provider, for 'generate' command)
+--user-id             User ID for memory operations (default: default_user, for 'generate' command)
 --dry-run             Don't actually post to Twitter, just print what would be posted
 ```
+
+The Twitter poster now supports three commands:
+- `post`: Post text directly to Twitter
+- `json`: Post content from a JSON file
+- `generate`: Generate a post from grant data JSON without posting
 
 ### Fraud Poster Arguments
 

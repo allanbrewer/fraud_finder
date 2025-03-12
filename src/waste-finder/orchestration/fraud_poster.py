@@ -18,15 +18,21 @@ logger = logging.getLogger(__name__)
 # Try to import modules from different possible paths
 try:
     from src.waste_finder.analysis.json_analyzer import JSONAnalyzer
-    from src.waste_finder.interaction.twitter_poster import TwitterPoster
+    from src.waste_finder.interaction.twitter_poster import (
+        TwitterPoster,
+        TwitterGenerator,
+    )
 except ImportError:
     try:
         from waste_finder.analysis.json_analyzer import JSONAnalyzer
-        from waste_finder.interaction.twitter_poster import TwitterPoster
+        from waste_finder.interaction.twitter_poster import (
+            TwitterPoster,
+            TwitterGenerator,
+        )
     except ImportError:
         try:
             from ..analysis.json_analyzer import JSONAnalyzer
-            from ..interaction.twitter_poster import TwitterPoster
+            from ..interaction.twitter_poster import TwitterPoster, TwitterGenerator
         except ImportError:
             raise ImportError(
                 "Could not import required modules. Check your python path and file structure."
@@ -69,6 +75,17 @@ class FraudPoster:
         )
         logger.info(f"JSON analyzer initialized with provider: {provider}")
 
+        # Initialize Twitter generator
+        self.twitter_generator = TwitterGenerator(
+            api_key=api_key,
+            model=model,
+            provider=provider,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            user_id=user_id,
+        )
+        logger.info(f"Twitter generator initialized with provider: {provider}")
+
         # Initialize Twitter poster (unless dry run)
         self.dry_run = dry_run
         if not dry_run:
@@ -98,7 +115,7 @@ class FraudPoster:
         output_dir=None,
     ):
         """
-        Process a single JSON file: analyze and optionally post to Twitter
+        Process a single JSON file: analyze, generate post, and optionally post to Twitter
 
         Args:
             json_file: Path to JSON file with grant data
@@ -112,28 +129,76 @@ class FraudPoster:
         """
         logger.info(f"Processing JSON file: {json_file}")
 
-        # Create output file path if output_dir is specified
-        output_file = None
+        # Create output directories if specified
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
-            output_file = os.path.join(
-                output_dir, f"{os.path.basename(json_file).split('.')[0]}_post.json"
-            )
+            analysis_dir = os.path.join(output_dir, "analysis")
+            os.makedirs(analysis_dir, exist_ok=True)
+            posts_dir = os.path.join(output_dir, "posts")
+            os.makedirs(posts_dir, exist_ok=True)
+        else:
+            analysis_dir = None
+            posts_dir = None
 
-        # Analyze JSON file
-        post_data = self.json_analyzer.analyze_json(
+        # Step 1: Analyze JSON file and research entities
+        analysis_result = self.json_analyzer.analyze_json(
             json_file=json_file,
-            output_file=output_file,
-            prompt_type=prompt_type,
             research_entities=research_entities,
+            output_dir=analysis_dir,
         )
 
-        if not post_data:
+        if not analysis_result:
             logger.error(f"Failed to analyze JSON file: {json_file}")
             return {
                 "json_file": json_file,
                 "success": False,
                 "error": "Failed to analyze JSON file",
+            }
+            
+        # Save analysis results if output directory is specified
+        if analysis_dir:
+            analysis_output_file = os.path.join(
+                analysis_dir, f"{os.path.basename(json_file).split('.')[0]}_analysis.json"
+            )
+            try:
+                with open(analysis_output_file, "w") as f:
+                    json.dump(analysis_result, f, indent=2)
+                logger.info(f"Analysis results saved to {analysis_output_file}")
+            except Exception as e:
+                logger.warning(f"Failed to save analysis results: {str(e)}")
+
+        # Create output file path for the post if output_dir is specified
+        post_output_file = None
+        if posts_dir:
+            post_output_file = os.path.join(
+                posts_dir, f"{os.path.basename(json_file).split('.')[0]}_post.json"
+            )
+
+        # Step 2: Generate Twitter post from analysis results
+        # If analysis_result is a list, we need to handle it differently
+        if isinstance(analysis_result, list):
+            logger.info(f"Analysis returned a list with {len(analysis_result)} entries")
+            # The TwitterGenerator will handle selecting the most interesting entry
+            post_data = self.twitter_generator.generate_from_json_file(
+                json_file=json_file,  # Pass the original file to let TwitterGenerator handle the format
+                output_file=post_output_file,
+                prompt_type=prompt_type,
+            )
+        else:
+            # Single entry, pass it directly
+            post_data = self.twitter_generator.generate_post(
+                grants_info=analysis_result,
+                output_file=post_output_file,
+                prompt_type=prompt_type,
+            )
+
+        if not post_data:
+            logger.error(f"Failed to generate post for JSON file: {json_file}")
+            return {
+                "json_file": json_file,
+                "success": False,
+                "error": "Failed to generate post",
+                "analysis_result": analysis_result,
             }
 
         # Display generated post
@@ -144,13 +209,13 @@ class FraudPoster:
             logger.info("-" * 40)
 
             # Save post data if output directory is specified but no specific output file was created
-            if output_dir and not output_file:
-                output_file = os.path.join(
-                    output_dir, f"{os.path.basename(json_file).split('.')[0]}_post.json"
+            if output_dir and not post_output_file:
+                post_output_file = os.path.join(
+                    posts_dir, f"{os.path.basename(json_file).split('.')[0]}_post.json"
                 )
-                with open(output_file, "w") as f:
+                with open(post_output_file, "w") as f:
                     json.dump(post_data, f, indent=2)
-                logger.info(f"Post data saved to {output_file}")
+                logger.info(f"Post data saved to {post_output_file}")
         else:
             logger.error("Generated result does not contain 'text' field")
             logger.info(json.dumps(post_data, indent=2))
@@ -159,9 +224,10 @@ class FraudPoster:
                 "success": False,
                 "error": "Generated result does not contain 'text' field",
                 "data": post_data,
+                "analysis_result": analysis_result,
             }
 
-        # Post to Twitter if requested and not in dry run mode
+        # Step 3: Post to Twitter if requested and not in dry run mode
         tweet_result = None
         if post_to_twitter and not self.dry_run and self.twitter_poster:
             logger.info("Posting to Twitter...")
@@ -174,7 +240,7 @@ class FraudPoster:
                 # Save the tweet result if output directory is specified
                 if output_dir:
                     tweet_output_file = os.path.join(
-                        output_dir,
+                        posts_dir,
                         f"{os.path.basename(json_file).split('.')[0]}_tweet.json",
                     )
                     with open(tweet_output_file, "w") as f:
@@ -188,9 +254,10 @@ class FraudPoster:
         return {
             "json_file": json_file,
             "success": True,
+            "analysis_result": analysis_result,
             "post_data": post_data,
             "tweet_result": tweet_result,
-            "output_file": output_file,
+            "post_output_file": post_output_file,
         }
 
     def process_directory(
