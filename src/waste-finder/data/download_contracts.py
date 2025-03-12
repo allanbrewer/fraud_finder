@@ -93,7 +93,7 @@ def fetch_download(
     # Create a deterministic filename based on parameters
     dept_name = department.replace(" ", "_").lower()
     filename = f"{dept_name}_{sub_award_type}_{start_date}_to_{end_date}.zip"
-    download_dir = "contract_data"
+    download_dir = "raw_data"
     os.makedirs(download_dir, exist_ok=True)
     file_path = os.path.join(download_dir, filename)
 
@@ -201,13 +201,13 @@ def main(
 ):
     """
     Main function to download contract data from USA Spending API
-    
+
     Args:
         department: Department to download
         sub_award_type: Type of award to download (procurement or grant)
         start_date: Start date in YYYY-MM-DD format
         end_date: End date in YYYY-MM-DD format
-        
+
     Returns:
         Exit code (0 for success, 1 for error)
     """
@@ -231,7 +231,7 @@ def main(
     for start_date, end_date in date_ranges:
         file_url = request_download(start_date, end_date, department, sub_award_type)
         file_urls[(department, start_date, end_date, sub_award_type)] = file_url
-        time.sleep(5)
+        time.sleep(10)
 
     # Step 2: Fetch the files
     successful_downloads = []

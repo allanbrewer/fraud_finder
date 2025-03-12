@@ -1,6 +1,7 @@
 # data
-processed_data/
+raw_data/
 contract_data/
+processed_data/
 filtered_data/
 llm_analysis/
 posts/

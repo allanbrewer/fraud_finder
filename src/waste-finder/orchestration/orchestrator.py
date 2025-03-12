@@ -94,7 +94,7 @@ def process_department(
             # Format: department_of_X_awardtype_date_to_date.zip
             dept_name_lower = dept_name.lower().replace(" ", "_")
             zip_pattern = os.path.join(
-                "contract_data", f"{dept_name_lower}_{award_type}_*.zip"
+                "raw_data", f"{dept_name_lower}_{award_type}_*.zip"
             )
             zip_files = glob.glob(zip_pattern)
 
@@ -110,7 +110,7 @@ def process_department(
 
         # Step 2: Transform and filter data
         master_file = transform_data(
-            zip_dir="contract_data",
+            zip_dir="raw_data",
             output_dir=dept_dir,
             dept_name=dept_name,
             dept_acronym=dept_acronym,
@@ -131,10 +131,10 @@ def process_all_existing_data(output_dir="processed_data"):
     results = {}
 
     # Find all existing zip files
-    zip_files = glob.glob(os.path.join("contract_data", "*.zip"))
+    zip_files = glob.glob(os.path.join("raw_data", "*.zip"))
 
     if not zip_files:
-        logger.warning("No existing zip files found in contract_data directory")
+        logger.warning("No existing zip files found in raw_data directory")
         return results
 
     logger.info(f"Found {len(zip_files)} existing zip files to process")
@@ -200,7 +200,7 @@ def process_all_existing_data(output_dir="processed_data"):
 
         # Transform and filter data
         master_file = transform_data(
-            zip_dir="contract_data",
+            zip_dir="raw_data",
             output_dir=dept_dir,
             dept_name=dept_name,
             dept_acronym=dept_acronym,

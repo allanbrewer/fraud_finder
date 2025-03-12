@@ -325,7 +325,7 @@ def process_zip_files(zip_files, dept_name, dept_acronym, sub_award_type, output
 
 
 def main(
-    zip_dir="contract_data",
+    zip_dir="raw_data",
     output_dir=None,
     dept_name=None,
     dept_acronym=None,
@@ -389,8 +389,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--zip-dir",
-        default="contract_data",
-        help="Directory containing zip files (default: contract_data)",
+        default="raw_data",
+        help="Directory containing zip files (default: raw_data)",
     )
     parser.add_argument(
         "--output-dir",
