@@ -7,6 +7,7 @@ import sys
 from dotenv import load_dotenv
 from datetime import datetime
 import re
+import time
 
 # Configure logging
 logging.basicConfig(
@@ -18,18 +19,21 @@ logger = logging.getLogger(__name__)
 try:
     # Try relative import (when used as a package)
     from ..core.base_llm import BaseLLM
+    from ..core.prompt import prompts
 
     logger.debug(f"Using relative imports")
 except ImportError:
     try:
         # Try absolute import with dots (common when using python -m)
         from src.waste_finder.core.base_llm import BaseLLM
+        from src.waste_finder.core.prompt import prompts
 
         logger.debug(f"Using absolute imports with dots")
     except ImportError:
         try:
             # Try absolute import with underscores (fallback)
             from src.waste_finder.core.base_llm import BaseLLM
+            from src.waste_finder.core.prompt import prompts
 
             logger.debug(f"Using absolute imports with underscores")
         except ImportError:
@@ -41,13 +45,22 @@ except ImportError:
                 sys.path.insert(0, parent_dir)
             try:
                 from src.waste_finder.core.base_llm import BaseLLM
+                from src.waste_finder.core.prompt import prompts
 
                 logger.debug(f"Using sys.path modification and absolute imports")
             except ImportError as e:
                 logger.error(f"Failed to import required modules: {e}")
+                # Provide fallback prompts
+                prompts = {
+                    "entity_research": "Analyze the grant data and entity infomration to research the entity and look for red flags and provide a concise report."
+                }
                 raise ImportError(
                     f"Could not import BaseLLM. Check your Python path and file structure: {e}"
                 )
+
+# Log available prompts
+if "prompts" in locals():
+    logger.info(f"Available prompts: {', '.join(prompts.keys())}")
 
 
 class JSONAnalyzer(BaseLLM):
@@ -61,6 +74,7 @@ class JSONAnalyzer(BaseLLM):
         max_tokens=4096,
         temperature=0.7,
         user_id="default_user",
+        prompt_type="entity_research",
     ):
         """
         Initialize JSON Analyzer
@@ -72,53 +86,38 @@ class JSONAnalyzer(BaseLLM):
             max_tokens: Maximum tokens for response
             temperature: Temperature for response generation
             user_id: User ID for memory operations
+            prompt_type: Type of prompt to use (default: entity_research)
         """
         super().__init__(api_key, model, provider, max_tokens, temperature, user_id)
 
-    def research_entity(self, award_data):
+    def research_entity(self, award_data, prompt_type="entity_research"):
         """
         Research an entity for more information
 
         Args:
             award_data: Dictionary containing award information
+            prompt_type: Type of prompt to use (default: entity_research)
 
         Returns:
             String containing research information about the entity
         """
         # Create a system message that instructs the LLM to research the entity
-        system_message = """You are a government waste investigator researching entities that receive government awards.
-        
-        Use sources like USASpending.gov, fpds.gov, and other federal government databases to research the entity.
 
-        Also look into the entity registation records online to get all available information.
-
-        Look for:
-        - News articles, affiliations, or reports indicating fraudulent activity, shell company traits, or conflicts of interest.
-        - Red flags such as:
-          - Lack of transparency (e.g., no website, minimal public info).
-          - Sudden receipt of large awards with no prior track record.
-          - Connections to known fraudulent entities or individuals.
-          - Recent formation with no clear mission or activity history.
-          - Leadership with conflicts of interest (e.g., ties to awarding agency).
-        
-        Provide a concise summary of findings, highlighting any red flags or lack thereof.
-        
-        Provide concise information about this entity focusing on:
-        1. What type of organization they are
-        2. Their main activities
-        3. Any controversies or questionable practices
-        4. Political affiliations or connections
-        5. Recent news or developments
-        6. What other activities do they do for the federal government
-        7. Have they recieved additional awards and what are they
-        
-        Format your response as a brief research report with key facts only.
-        """
+        if prompt_type in prompts:
+            system_message = prompts[prompt_type]
+            logger.info(f"Using prompt type: {prompt_type}")
+        else:
+            system_message = prompts["entity_research"]  # Default to Research prompt
+            logger.info("Using default prompt: entity_research")
 
         # Create a prompt to research the entity
         prompt = f"Research the following entity that recieved an award with the following details:\n{json.dumps(award_data, indent=2)}"
 
         logger.info(f"Researching award: \n{json.dumps(award_data, indent=2)}")
+
+        # Call appropriate API based on provider
+        logger.info(f"Calling {self.provider.upper()} API with model {self.model}...")
+        start_time = time.time()
 
         if self.provider == "openai":
             response_text = self.call_openai_api(prompt, system_message)
@@ -130,13 +129,27 @@ class JSONAnalyzer(BaseLLM):
             logger.error(f"Unknown provider: {self.provider}")
             return None
 
-        return response_text
+        end_time = time.time()
+        logger.info(f"API call completed in {end_time - start_time:.2f} seconds")
+
+        if not response_text:
+            logger.error("Failed to get response from API")
+            return None
+
+        # Parse JSON response
+        try:
+            result = json.loads(response_text)
+            return result
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse JSON response: {response_text}")
+            return {"error": "Failed to parse response", "raw_response": response_text}
 
     def analyze_json(
         self,
         json_file,
         award_type=None,
         output_dir="llm_analysis",
+        prompt_type="entity_research",
     ):
         """
         Analyze JSON file with contract data and research entities
@@ -145,6 +158,7 @@ class JSONAnalyzer(BaseLLM):
             json_file: Path to JSON file with contract data
             award_type: Type of award (procurement, grant, etc.)
             output_dir: Directory to save research results
+            prompt_type: Type of prompt to use (default: entity_research)
 
         Returns:
             List or dictionary with research results
@@ -174,7 +188,7 @@ class JSONAnalyzer(BaseLLM):
                             f"Processing list '{list_name}' with {len(targets)} entries"
                         )
                         results = self._process_multiple_entries(
-                            targets, award_type, output_dir
+                            targets, award_type, output_dir, prompt_type
                         )
                         if results:
                             # Add the list name to each result for reference
@@ -186,11 +200,15 @@ class JSONAnalyzer(BaseLLM):
                 else:
                     # No lists found, process as a single entry
                     logger.info("Processing JSON as a single entry")
-                    return self._process_single_entry(data, award_type, output_dir)
+                    return self._process_single_entry(
+                        data, award_type, output_dir, prompt_type
+                    )
             elif isinstance(data, list):
                 # Process as multiple entries directly
                 logger.info(f"Processing JSON as a list with {len(data)} entries")
-                return self._process_multiple_entries(data, award_type, output_dir)
+                return self._process_multiple_entries(
+                    data, award_type, output_dir, prompt_type
+                )
             else:
                 logger.error(f"Unsupported data type: {type(data)}")
                 return None
@@ -198,7 +216,9 @@ class JSONAnalyzer(BaseLLM):
             logger.error(f"Error analyzing JSON data: {str(e)}")
             return None
 
-    def _process_single_entry(self, data, award_type=None, output_dir=None):
+    def _process_single_entry(
+        self, data, award_type=None, output_dir=None, prompt_type="entity_research"
+    ):
         """
         Process a single grant entry from a dictionary
 
@@ -206,6 +226,7 @@ class JSONAnalyzer(BaseLLM):
             data: Dictionary containing grant data
             award_type: Type of award (procurement, grant, etc.)
             output_dir: Directory to save research results
+            prompt_type: Type of prompt to use (default: entity_research)
 
         Returns:
             Dictionary with processed grant information
@@ -219,7 +240,7 @@ class JSONAnalyzer(BaseLLM):
 
         # Research entity if required
         if "recipient_name" in grants_info:
-            entity_research = self.research_entity(grants_info)
+            entity_research = self.research_entity(grants_info, prompt_type)
             grants_info["entity_research"] = entity_research
 
             # Save research results to file if output directory is specified
@@ -228,7 +249,9 @@ class JSONAnalyzer(BaseLLM):
 
         return grants_info
 
-    def _process_multiple_entries(self, data, award_type=None, output_dir=None):
+    def _process_multiple_entries(
+        self, data, award_type=None, output_dir=None, prompt_type="entity_research"
+    ):
         """
         Process multiple grant entries from a list
 
@@ -236,6 +259,7 @@ class JSONAnalyzer(BaseLLM):
             data: List containing grant data entries
             award_type: Type of award (procurement, grant, etc.)
             output_dir: Directory to save research results
+            prompt_type: Type of prompt to use (default: entity_research)
 
         Returns:
             List of dictionaries with processed grant information
@@ -253,7 +277,7 @@ class JSONAnalyzer(BaseLLM):
 
                 # Research entity if required
                 if "recipient_name" in grant_info:
-                    entity_research = self.research_entity(grant_info)
+                    entity_research = self.research_entity(grant_info, prompt_type)
                     grant_info["entity_research"] = entity_research
 
                     # Save research results to file if output directory is specified
@@ -449,6 +473,13 @@ def main():
         help="User ID for memory operations (default: default_user)",
     )
 
+    parser.add_argument(
+        "--prompt-type",
+        default="entity_research",
+        choices=prompts.keys(),
+        help=f"Type of prompt to use (default: entity_research, available: {', '.join(prompts.keys())})",
+    )
+
     # Parse arguments
     args = parser.parse_args()
 
@@ -461,6 +492,7 @@ def main():
             max_tokens=args.max_tokens,
             temperature=args.temperature,
             user_id=args.user_id,
+            prompt_type=args.prompt_type,
         )
     except ValueError as e:
         logger.error(f"Error initializing analyzer: {str(e)}")
@@ -471,6 +503,7 @@ def main():
         json_file=args.json_file,
         award_type=args.award_type,
         output_dir=args.output_dir,
+        prompt_type=args.prompt_type,
     )
 
     # Print result
