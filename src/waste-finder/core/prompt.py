@@ -17,22 +17,24 @@ dei_prompt = """
     - It is important to reduce the total number of contracts to only the ones we should focus our attention. 
     - Only keep contracts that have a high probability of being part of DEI initiative. 
     - Use the description of the already canceled contracts from https://doge.gov/savings as a reference to flag contracts on the provided text.
-    - If undecided best not to include the award in the `dei_contracts` list.
+    - If undecided best not to include the award in the output JSON.
     - Summarize the description for each award but keep the keywords in the original text. Make them as short as possible.
     - Double check if the contract is live by using the https://www.fpds.gov/ ezSearch and review all modification to make determine if the contract has been terminated it. E.g. "terminted for convinience", "close out" or updated end date is before March 2025.
-    - Output as a JSON file
 
     Rules:
     - Go to https://doge.gov/savings and look at the contract descriptions in the list ot understand the mission criticality. Use the descriptions on the websiteto flag contracts on the provided text.
     - Case-insensitive keyword search.
     - Ignore terminated/expired rows, end date after March 2025.
     - Do not add awards that that are clear mission-critical (e.g., "aircraft maintenance" is fine, "training" alone isn’t).  
+    - Output as a JSON file with a list called `doge_targets`.
     - Make output JSON as compact as possible only including `id`, `amount`, `description`, and `recipient`.
 
     Example Output:
     {   
-        {"id": "75P00123P00067", "amount": 500000, "description": "Training", "recipient": "Me, LLC"}
-        {"id": "SAQMMA15F0999", "amount": 500000, "description": "Training", "recipient": "Me, LLC"}
+        "doge_targets": [
+            {"id": "75P00123P00067", "amount": 500000, "description": "Training", "recipient": "Me, LLC"},
+            {"id": "SAQMMA15F0999", "amount": 500000, "description": "Training", "recipient": "Me, LLC"}
+        ]
     }
     """
 
@@ -52,20 +54,22 @@ waste_prompt = """
     - It is important to reduce the total number of contracts to only the ones we should focus our attention. 
     - Only keep contracts that have a high probability of waste based on vague descriptions and waste or abuse keywords.
     - Use the description of the already canceled contracts from https://doge.gov/savings as a reference to flag contracts on the provided text.
-    - If undecided best not to include the award in the `doge_targets` list.
+    - If undecided best not to include the award in the output JSON.
     - Summarize the description for each award but keep the keywords in the original text. Make them as short as possible.
     - Double check if the contract is live by using the https://www.fpds.gov/ ezSearch and review all modification to make determine if the contract has been terminated it. E.g. "terminted for convinience", "close out" or updated end date is before March 2025.
-    - Output as a JSON file
 
     Rules:
     - Case-insensitive keyword search.
     - Ignore terminated/expired rows, end date after March 2025.
     - Prioritize vague terms unless clearly mission-critical (e.g., "aircraft maintenance" is fine, "training" alone isn’t).  
+    - Output as a JSON file with a list called `doge_targets`.
     - Make output JSON as compact as possible only including `id`, `amount`, `description`, and `recipient`.
 
     Example Output:
     {   
-        {"id": "75P00123P00067", "amount": 500000, "description": "Training", "recipient": "Me, LLC"}
+        "doge_targets": [
+            {"id": "75P00123P00067", "amount": 500000, "description": "Training", "recipient": "Me, LLC"}
+        ]
     }
     """
 
@@ -89,7 +93,6 @@ ngo_fraud_prompt = """
     - If undecided best not to include the award in the output JSON.
     - Summarize the description for each award but keep the keywords in the original text. Make them as short as possible.
     - Double check if the grant is live by using the https://www.fpds.gov/ ezSearch and review all modification to make determine if the grant has been terminated it. E.g. "terminted for convinience", "close out" or updated end date is before March 2025.
-    - Output as a JSON file
 
     Rules:
     - Go to https://doge.gov/savings and look at the grant descriptions in the list ot understand the mission criticality. Use the descriptions on the websiteto flag grants on the provided text.
@@ -97,12 +100,15 @@ ngo_fraud_prompt = """
     - Case-insensitive keyword search.
     - Ignore terminated/expired rows, end date after March 2025.
     - Prioritize any amount or vague terms unless clearly mission-critical (e.g., "aircraft maintenance" is fine, "training" alone isn’t).  
+    - Output as a JSON file with a list called `doge_targets`.
     - Make output JSON as compact as possible including `id`, `amount`, `description`, `recipient` and `recipient_info`.
 
     Example Output:
     {   
-        {"id": "75P00123P00067", "amount": 500000, "description": "Training", "recipient": "Me, LLC", "recipient_info": "Company is associated with multiple vague training contracts"}
-        {"id": "SAQMMA15F0999", "amount": 500000, "description": "Research", "recipient": "Me, LLC", "recipient_info": "NGO owned by a a company or person associated to the Democratic Party."}
+        "doge_targets": [
+            {"id": "75P00123P00067", "amount": 500000, "description": "Training", "recipient": "Me, LLC", "recipient_info": "Company is associated with multiple vague training contracts"},
+            {"id": "SAQMMA15F0999", "amount": 500000, "description": "Research", "recipient": "Me, LLC", "recipient_info": "NGO owned by a a company or person associated to the Democratic Party."}
+        ]
     }
     """
 
