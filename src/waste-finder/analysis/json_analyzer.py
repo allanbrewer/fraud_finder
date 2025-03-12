@@ -6,6 +6,8 @@ import logging
 import time
 import sys
 from dotenv import load_dotenv
+from datetime import datetime
+import re
 
 # Configure logging
 logging.basicConfig(
@@ -144,108 +146,104 @@ class JSONAnalyzer(BaseLLM):
 
         return response_text
 
-    def analyze_json(
-        self, json_file, output_file=None, prompt_type="x_doge", research_entities=True
+    def extract_grants_info(
+        self, json_file, award_type=None, research_entities=True, output_dir=None
     ):
         """
-        Analyze JSON file with contract data and generate an X/Twitter post
+        Extract grants information from JSON file
 
         Args:
-            json_file: Path to JSON file with contract data
-            output_file: Path to save output JSON
-            prompt_type: Type of prompt to use (default: x_doge)
-            research_entities: Whether to research the entities found in the JSON
+            json_file: Path to JSON file
+            award_type: Type of award (procurement, grant, etc.)
+            research_entities: Whether to research entities
+            output_dir: Directory to save research results (default: llm_analysis)
 
         Returns:
-            JSON object with tweet text
+            Dictionary containing grants information
         """
-        # Load JSON data
         try:
+            # Load JSON data
             with open(json_file, "r") as f:
                 data = json.load(f)
-                logger.info(f"Loaded JSON data from {json_file}")
+
+            # Extract grants information
+            grants_info = {}
+
+            # Check if data is a dictionary or list
+            if isinstance(data, dict):
+                # Extract information from dictionary
+                grants_info = self._extract_from_dict(data)
+            elif isinstance(data, list):
+                # Extract information from list
+                grants_info = self._extract_from_list(data)
+            else:
+                logger.error(f"Unsupported data type: {type(data)}")
+                return None
+
+            # Add award type if specified
+            if award_type:
+                grants_info["award_type"] = award_type
+                logger.info(f"Added award type: {award_type}")
+
+            # Research entities if required
+            if research_entities and "recipient_name" in grants_info:
+                entity_research = self.research_entity(grants_info)
+                grants_info["entity_research"] = entity_research
+                logger.info("Added entity research to grants information")
+
+                # Save research results to file if output directory is specified
+                if output_dir is not None:
+                    self._save_research_results(grants_info, output_dir)
+
+            return grants_info
         except Exception as e:
-            logger.error(f"Error loading JSON data: {str(e)}")
+            logger.error(f"Error extracting grants information: {str(e)}")
             return None
 
-        # Extract relevant information from the JSON
-        grants_info = self.extract_grants_info(data)
-        if not grants_info:
-            logger.error("No relevant grant information found in the JSON")
-            return None
-
-        # Research entities if required
-        if research_entities and "recipient_name" in grants_info:
-            entity_research = self.research_entity(grants_info)
-            grants_info["entity_research"] = entity_research
-            logger.info("Added entity research to grants information")
-
-        # Create system message
-        system_message = self.create_system_message_for_post(grants_info)
-
-        # Select the appropriate prompt
-        if prompt_type in prompts:
-            selected_prompt = prompts[prompt_type]
-            logger.info(f"Using prompt type: {prompt_type}")
-        else:
-            selected_prompt = prompts["x_doge"]
-            logger.info(f"Prompt type {prompt_type} not found, using x_doge prompt")
-
-        # Generate the X/Twitter post
-        logger.info(f"Generating X/Twitter post with {self.provider.upper()} API...")
-        start_time = time.time()
-
-        # Create a complete prompt with the grants data
-        complete_prompt = f"{selected_prompt}\n\nHere is the grant information to use:\n{json.dumps(grants_info, indent=2)}"
-
-        if self.provider == "openai":
-            response_text = self.call_openai_api(complete_prompt, system_message)
-        elif self.provider == "anthropic":
-            response_text = self.call_anthropic_api(complete_prompt, system_message)
-        elif self.provider == "xai":
-            response_text = self.call_xai_api(complete_prompt, system_message)
-        else:
-            logger.error(f"Unknown provider: {self.provider}")
-            return None
-
-        elapsed_time = time.time() - start_time
-        logger.info(f"Post generation completed in {elapsed_time:.2f} seconds")
-
-        if not response_text:
-            logger.error("Failed to generate post")
-            return None
-
-        # Parse JSON response
-        try:
-            result = json.loads(response_text)
-
-            # Save to file if output file is specified
-            if output_file:
-                with open(output_file, "w") as f:
-                    json.dump(result, f, indent=2)
-                logger.info(f"Result saved to {output_file}")
-
-            return result
-        except json.JSONDecodeError:
-            logger.error(f"Failed to parse JSON response: {response_text}")
-
-            # Save raw response to file if output file is specified
-            if output_file:
-                with open(output_file, "w") as f:
-                    f.write(response_text)
-                logger.info(f"Raw response saved to {output_file}")
-
-            return {"error": "Failed to parse response", "raw_response": response_text}
-
-    def extract_grants_info(self, data):
+    def _save_research_results(self, grants_info, output_dir="llm_analysis"):
         """
-        Extract relevant information from grant data JSON
+        Save research results to a file
 
         Args:
-            data: JSON data from LLM analysis
+            grants_info: Dictionary containing grants information with entity research
+            output_dir: Directory to save research results
+        """
+        try:
+            # Create output directory if it doesn't exist
+            os.makedirs(output_dir, exist_ok=True)
+
+            # Extract entity name and award type for filename
+            entity_name = grants_info.get("recipient_name", "unknown_entity")
+            award_type = grants_info.get("award_type", "unknown_type")
+
+            # Clean entity name for filename (remove special characters)
+            clean_entity_name = (
+                re.sub(r"[^\w\s-]", "", entity_name).strip().replace(" ", "_")
+            )
+
+            # Create filename
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"research_{clean_entity_name}_{award_type}_{timestamp}.json"
+            filepath = os.path.join(output_dir, filename)
+
+            # Save to file
+            with open(filepath, "w") as f:
+                json.dump(grants_info, f, indent=2)
+
+            logger.info(f"Saved research results to {filepath}")
+
+        except Exception as e:
+            logger.error(f"Error saving research results: {str(e)}")
+
+    def _extract_from_dict(self, data):
+        """
+        Extract grants information from dictionary
+
+        Args:
+            data: Dictionary containing grants information
 
         Returns:
-            Dictionary with relevant grant information
+            Dictionary with extracted grants information
         """
         grants_info = {}
 
@@ -298,6 +296,68 @@ class JSONAnalyzer(BaseLLM):
 
         return grants_info
 
+    def _extract_from_list(self, data):
+        """
+        Extract grants information from list
+
+        Args:
+            data: List containing grants information
+
+        Returns:
+            Dictionary with extracted grants information
+        """
+        grants_info = {}
+
+        # Extract information from list
+        for item in data:
+            if isinstance(item, dict):
+                # Try to extract from the top level
+                if "award_id_fain" in item:
+                    grants_info["award_id"] = item.get("award_id_fain")
+                elif "award_id_piid" in item:
+                    grants_info["award_id"] = item.get("award_id_piid")
+                elif "id" in item:
+                    grants_info["award_id"] = item.get("id")
+
+                # Extract description
+                if "description" in item:
+                    grants_info["description"] = item.get("description")
+                elif "prime_award_base_transaction_description" in item:
+                    grants_info["description"] = item.get(
+                        "prime_award_base_transaction_description"
+                    )
+
+                # Extract amount
+                if "amount" in item:
+                    grants_info["amount"] = item.get("amount")
+                elif "total_obligated_amount" in item:
+                    grants_info["amount"] = item.get("total_obligated_amount")
+                elif "current_total_value_of_award" in item:
+                    grants_info["amount"] = item.get("current_total_value_of_award")
+
+                # Extract recipient
+                if "recipient" in item:
+                    grants_info["recipient_name"] = item.get("recipient")
+                elif "recipient_name" in item:
+                    grants_info["recipient_name"] = item.get("recipient_name")
+
+                # Extract recipient info if available
+                if "recipient_info" in item:
+                    grants_info["recipient_info"] = item.get("recipient_info")
+
+        # If we couldn't find enough information, log a warning
+        required_fields = ["award_id", "recipient_name", "description"]
+        missing_fields = [
+            field for field in required_fields if field not in grants_info
+        ]
+
+        if missing_fields:
+            logger.warning(
+                f"Missing required fields in grant data: {', '.join(missing_fields)}"
+            )
+
+        return grants_info
+
     def create_system_message_for_post(self, grants_info):
         """
         Create system message for post generation
@@ -320,6 +380,7 @@ class JSONAnalyzer(BaseLLM):
         4. Why taxpayers should be concerned
         
         Your post should be concise, attention-grabbing, and under 280 characters.
+        Do not use hastags
         
         Format your response as a JSON object with 'text' and 'quote_tweet_id' fields.
         """
@@ -343,6 +404,107 @@ class JSONAnalyzer(BaseLLM):
                 logger.warning(f"Error retrieving memories: {str(e)}")
 
         return system_message
+
+    def analyze_json(
+        self,
+        json_file,
+        output_file=None,
+        prompt_type="x_doge",
+        research_entities=True,
+        output_dir="llm_analysis",
+    ):
+        """
+        Analyze JSON file with contract data and generate an X/Twitter post
+
+        Args:
+            json_file: Path to JSON file with contract data
+            output_file: Path to save output JSON
+            prompt_type: Type of prompt to use (default: x_doge)
+            research_entities: Whether to research the entities found in the JSON
+            output_dir: Directory to save research results
+
+        Returns:
+            JSON object with tweet text
+        """
+        # Extract grants information
+        grants_info = self.extract_grants_info(
+            json_file, research_entities=research_entities, output_dir=output_dir
+        )
+        if not grants_info:
+            return None
+
+        # Create prompt
+        complete_prompt = self.create_prompt_for_post(grants_info, prompt_type)
+
+        # Call appropriate API based on provider
+        logger.info(f"Calling {self.provider.upper()} API...")
+        start_time = time.time()
+
+        if self.provider == "openai":
+            system_message = self.create_system_message_for_post(grants_info)
+            response_text = self.call_openai_api(complete_prompt, system_message)
+        elif self.provider == "anthropic":
+            system_message = self.create_system_message_for_post(grants_info)
+            response_text = self.call_anthropic_api(complete_prompt, system_message)
+        elif self.provider == "xai":
+            system_message = self.create_system_message_for_post(grants_info)
+            response_text = self.call_xai_api(complete_prompt, system_message)
+        else:
+            logger.error(f"Unknown provider: {self.provider}")
+            return None
+
+        end_time = time.time()
+        logger.info(f"API call completed in {end_time - start_time:.2f} seconds")
+
+        if not response_text:
+            logger.error("Failed to get response from API")
+            return None
+
+        # Parse JSON response
+        try:
+            result = json.loads(response_text)
+
+            # Save to file if output file is specified
+            if output_file:
+                with open(output_file, "w") as f:
+                    json.dump(result, f, indent=2)
+                logger.info(f"Analysis saved to {output_file}")
+
+            return result
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse JSON response: {response_text}")
+
+            # Save raw response to file if output file is specified
+            if output_file:
+                with open(output_file, "w") as f:
+                    f.write(response_text)
+                logger.info(f"Raw response saved to {output_file}")
+
+            return {"error": "Failed to parse response", "raw_response": response_text}
+
+    def create_prompt_for_post(self, grants_info, prompt_type):
+        """
+        Create prompt for post generation
+
+        Args:
+            grants_info: Dictionary with grant information
+            prompt_type: Type of prompt to use
+
+        Returns:
+            Prompt string
+        """
+        # Select the appropriate prompt
+        if prompt_type in prompts:
+            selected_prompt = prompts[prompt_type]
+            logger.info(f"Using prompt type: {prompt_type}")
+        else:
+            selected_prompt = prompts["x_doge"]
+            logger.info(f"Prompt type {prompt_type} not found, using x_doge prompt")
+
+        # Create a complete prompt with the grants data
+        complete_prompt = f"{selected_prompt}\n\nHere is the grant information to use:\n{json.dumps(grants_info, indent=2)}"
+
+        return complete_prompt
 
 
 def main():
@@ -375,6 +537,13 @@ def main():
         "--no-research",
         action="store_true",
         help="Skip researching entities in the grant data",
+    )
+
+    # Add output directory argument
+    parser.add_argument(
+        "--output-dir",
+        default="llm_analysis",
+        help="Directory to save research results (default: llm_analysis)",
     )
 
     # Common arguments for LLM configuration
@@ -438,6 +607,7 @@ def main():
         args.output_file,
         args.prompt_type,
         not args.no_research,
+        args.output_dir,
     )
 
     # Print result
@@ -467,5 +637,4 @@ def main():
 if __name__ == "__main__":
     # This code only runs when the module is executed directly
     # It will not run when the module is imported
-    if __name__ == "__main__":
-        sys.exit(main())
+    sys.exit(main())
