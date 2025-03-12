@@ -87,12 +87,12 @@ class JSONAnalyzer(BaseLLM):
         """
         super().__init__(api_key, model, provider, max_tokens, temperature, user_id)
 
-    def research_entity(self, entity_name):
+    def research_entity(self, award_data):
         """
         Research an entity for more information
 
         Args:
-            entity_name: The name of the entity to research
+            award_data: Dictionary containing award information
 
         Returns:
             String containing research information about the entity
@@ -103,6 +103,17 @@ class JSONAnalyzer(BaseLLM):
         Use sources like USASpending.gov, fpds.gov, and other federal government databases to research the entity.
 
         Also look into company/NGO registation records online to get all available information.
+
+        Look for:
+        - News articles, affiliations, or reports indicating fraudulent activity, shell company traits, or conflicts of interest.
+        - Red flags such as:
+          - Lack of transparency (e.g., no website, minimal public info).
+          - Sudden receipt of large grants with no prior track record.
+          - Connections to known fraudulent entities or individuals.
+          - Recent formation with no clear mission or activity history.
+          - Leadership with conflicts of interest (e.g., ties to awarding agency).
+        
+        Provide a concise summary of findings, highlighting any red flags or lack thereof.
         
         Provide concise information about this entity focusing on:
         1. What type of organization they are
@@ -117,9 +128,9 @@ class JSONAnalyzer(BaseLLM):
         """
 
         # Create a prompt to research the entity
-        prompt = f"Research the following entity that received government grants: {entity_name}"
+        prompt = f"Research the following entity that recieved an award with the following details:\n{json.dumps(award_data, indent=2)}"
 
-        logger.info(f"Researching entity: {entity_name}")
+        logger.info(f"Researching entity: {award_data['recipient_name']}")
 
         if self.provider == "openai":
             response_text = self.call_openai_api(prompt, system_message)
@@ -165,7 +176,7 @@ class JSONAnalyzer(BaseLLM):
 
         # Research entities if required
         if research_entities and "recipient_name" in grants_info:
-            entity_research = self.research_entity(grants_info["recipient_name"])
+            entity_research = self.research_entity(grants_info)
             grants_info["entity_research"] = entity_research
             logger.info("Added entity research to grants information")
 

@@ -6,21 +6,21 @@ dei_prompt = """
     Process these files with the following parameters: 
     
     Analyze the attached CSV of government awards to identify:
-    1. **DEI Contracts**: Live contracts end date after today with "diversity," "equity," "inclusion," "DEI," "DEIA," or "DEBIA" in `prime_award_base_transaction_description`. These align with the Executive Order targeting DEI waste.
-    2. **DOGE Targets**: Live contracts end date after today indicating potential fraud, waste, or abuse per doge.gov/savings—e.g., amounts >$1M, vague descriptions ("support services," "consulting," "training," "management" without specifics), or non-essential spending (e.g., travel, cultural fluff).
+    1. **DEI Contracts**: Live contracts end date after March 2025 with "diversity," "equity," "inclusion," "DEI," "DEIA," or "DEBIA" in `prime_award_base_transaction_description`. These align with the Executive Order targeting DEI waste.
+    2. **DOGE Targets**: Live contracts end date after March 2025 indicating potential fraud, waste, or abuse per doge.gov/savings—e.g., amounts >$1M, vague descriptions ("support services," "consulting," "training," "management" without specifics), or non-essential spending (e.g., travel, cultural fluff).
 
     For each:
     - Extract `award_id_piid`, `current_total_value_of_award`, `prime_award_base_transaction_description`, `period_of_performance_current_end_date` and `recipient_name`.
-    - Flag if live: end date after today.
+    - Flag if live: end date after March 2025.
     - Summarize the description for each award but keep the keywords in the original text. Make them as short as possible.
-    - Double check if the contract is live by using the https://www.fpds.gov/ ezSearch and review all modification to make determine if the contract has been terminated it. E.g. "terminted for convinience", "close out" or updated end date is before today.
+    - Double check if the contract is live by using the https://www.fpds.gov/ ezSearch and review all modification to make determine if the contract has been terminated it. E.g. "terminted for convinience", "close out" or updated end date is before March 2025.
     - Output as two JSON lists: `dei_contracts` and `doge_targets`.
     - If a award is flagged for one list (`dei_contracts` OR `doge_targets`) then it should not be added to the other list.
 
     Rules:
     - Go to https://doge.gov/savings and look at the contract descriptions in the list ot understand the mission criticality. Use the descriptions on the websiteto flag contracts on the provided text.
     - Case-insensitive keyword search.
-    - Ignore terminated/expired rows, end date after today.
+    - Ignore terminated/expired rows, end date after March 2025.
     - For DOGE, prioritize any amount or vague terms unless clearly mission-critical (e.g., "aircraft maintenance" is fine, "training" alone isn’t).  
     - Make output JSON as compact as possible only including `id`, `amount`, `description`, and `recipient`.
 
@@ -41,20 +41,25 @@ waste_prompt = """
     Process these files with the following parameters: 
     
     Analyze the attached CSV of government awards to identify:
-    **Waste Contracts**: Live contracts end date after today indicating potential fraud, waste, or abuse per doge.gov/savings—e.g., amounts >$1M, vague descriptions ("support services," "consulting," "training," "management" without specifics), or non-essential spending (e.g., travel, cultural fluff).
+    - Waste Contracts: Live contracts end date after March 2025 indicating potential fraud, waste, or abuse per doge.gov/savings 
+        - Example: amounts >$1M, vague descriptions ("support services," "consulting," "training," "management" without specifics), or non-essential spending (e.g., travel, cultural fluff).
 
     For each:
     - Extract `award_id_piid`, `current_total_value_of_award`, `prime_award_base_transaction_description`, `period_of_performance_current_end_date` and `recipient_name`.
-    - Flag if live: end date after today.
+    - Flag if live: end date after March 2025.
+    - By analyzing the description of the award makea determination if we can consider this a wasteful contract based on the use of vague words and vague outcomes.
+    - It is important to reduce the total number of contracts to only the ones we should focus our attention. 
+    - Only keep contracts that have a high probability of waste based on the already canceled contracts from https://doge.gov/savings.
+    - If undecided best not to include the award in the `doge_targets` list.
     - Summarize the description for each award but keep the keywords in the original text. Make them as short as possible.
-    - Double check if the contract is live by using the https://www.fpds.gov/ ezSearch and review all modification to make determine if the contract has been terminated it. E.g. "terminted for convinience", "close out" or updated end date is before today.
+    - Double check if the contract is live by using the https://www.fpds.gov/ ezSearch and review all modification to make determine if the contract has been terminated it. E.g. "terminted for convinience", "close out" or updated end date is before March 2025.
     - Output as JSON list: `doge_targets`.
+    - 
 
     Rules:
-    - Go to https://doge.gov/savings and look at the contract descriptions in the list ot understand the mission criticality. Use the descriptions on the websiteto flag contracts on the provided text.
     - Case-insensitive keyword search.
-    - Ignore terminated/expired rows, end date after today.
-    - Prioritize any amount or vague terms unless clearly mission-critical (e.g., "aircraft maintenance" is fine, "training" alone isn’t).  
+    - Ignore terminated/expired rows, end date after March 2025.
+    - Prioritize vague terms unless clearly mission-critical (e.g., "aircraft maintenance" is fine, "training" alone isn’t).  
     - Make output JSON as compact as possible only including `id`, `amount`, `description`, and `recipient`.
 
     Example Output:
@@ -71,15 +76,15 @@ ngo_fraud_prompt = """
     Process these files with the following parameters: 
     
     Analyze the attached CSV of government awards to identify:
-    1. Live contracts end date after today indicating potential fraud, waste, or abuse per doge.gov/savings—e.g., amounts >$1M, vague descriptions ("support services," "consulting," "training," "management" without specifics), or non-essential spending (e.g., travel, cultural fluff).
+    1. Live contracts end date after March 2025 indicating potential fraud, waste, or abuse per doge.gov/savings—e.g., amounts >$1M, vague descriptions ("support services," "consulting," "training," "management" without specifics), or non-essential spending (e.g., travel, cultural fluff).
     2. Live grants that are giving money to companies or NGOs that are not mission-critical. Specially looks for grant awarded to other countries.
     3. Look into grants that have a high amount of money, vague descriptions, or non-essential spending.
     
     For each:
     - Extract `award_id_fain`, `total_obligated_amount`, `prime_award_base_transaction_description`, `period_of_performance_current_end_date` and `recipient_name`.
     - Summarize the description for each award but keep the keywords in the original text. Make them as short as possible.
-    - Double check if the grant is live by using the https://www.fpds.gov/ ezSearch and review all modification to make determine if the grant has been terminated it. E.g. "terminted for convinience", "close out" or updated end date is before today.
-    - Flag if live: end date after today.
+    - Double check if the grant is live by using the https://www.fpds.gov/ ezSearch and review all modification to make determine if the grant has been terminated it. E.g. "terminted for convinience", "close out" or updated end date is before March 2025.
+    - Flag if live: end date after March 2025.
     - Output as two JSON lists: `fraud_contracts` and `doge_targets` for others.
     - If a award is flagged for one list (`fraud_contracts` OR `doge_targets`) then it should not be added to the other list.
 
@@ -87,7 +92,7 @@ ngo_fraud_prompt = """
     - Go to https://doge.gov/savings and look at the grant descriptions in the list ot understand the mission criticality. Use the descriptions on the websiteto flag grants on the provided text.
     - Using the recipient name do small reasarch online and get basic information on it for 'recipient_info' field. e.g: NGO, US based, country of origin, shell company, etc.
     - Case-insensitive keyword search.
-    - Ignore terminated/expired rows, end date after today.
+    - Ignore terminated/expired rows, end date after March 2025.
     - Prioritize any amount or vague terms unless clearly mission-critical (e.g., "aircraft maintenance" is fine, "training" alone isn’t).  
     - Make output JSON as compact as possible including `id`, `amount`, `description`, `recipient` and `recipient_info`.
 
