@@ -35,6 +35,36 @@ dei_prompt = """
     }
     """
 
+waste_prompt = """
+    I have the following CSV files: 
+
+    Process these files with the following parameters: 
+    
+    Analyze the attached CSV of government awards to identify:
+    **Waste Contracts**: Live contracts end date after today indicating potential fraud, waste, or abuse per doge.gov/savings—e.g., amounts >$1M, vague descriptions ("support services," "consulting," "training," "management" without specifics), or non-essential spending (e.g., travel, cultural fluff).
+
+    For each:
+    - Extract `award_id_piid`, `current_total_value_of_award`, `prime_award_base_transaction_description`, `period_of_performance_current_end_date` and `recipient_name`.
+    - Flag if live: end date after today.
+    - Summarize the description for each award but keep the keywords in the original text. Make them as short as possible.
+    - Double check if the contract is live by using the https://www.fpds.gov/ ezSearch and review all modification to make determine if the contract has been terminated it. E.g. "terminted for convinience", "close out" or updated end date is before today.
+    - Output as JSON list: `doge_targets`.
+
+    Rules:
+    - Go to https://doge.gov/savings and look at the contract descriptions in the list ot understand the mission criticality. Use the descriptions on the websiteto flag contracts on the provided text.
+    - Case-insensitive keyword search.
+    - Ignore terminated/expired rows, end date after today.
+    - Prioritize any amount or vague terms unless clearly mission-critical (e.g., "aircraft maintenance" is fine, "training" alone isn’t).  
+    - Make output JSON as compact as possible only including `id`, `amount`, `description`, and `recipient`.
+
+    Example Output:
+    {   
+    "doge_targets": [
+        {"id": "75P00123P00067", "amount": 500000, "description": "Training", "recipient": "Me, LLC"}
+    ]
+    }
+    """
+
 ngo_fraud_prompt = """
     I have the following CSV files: 
 
@@ -124,6 +154,7 @@ x_doge_prompt = """
 prompts = {
     "dei": dei_prompt,
     "ngo_fraud": ngo_fraud_prompt,
+    "waste": waste_prompt,
     "x_post": x_post_prompt,
     "x_doge": x_doge_prompt,
 }

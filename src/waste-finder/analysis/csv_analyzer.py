@@ -20,40 +20,49 @@ try:
     # Try relative import (when used as a package)
     from ..core.base_llm import BaseLLM
     from ..core.prompt import prompts
+
     logger.debug(f"Using relative imports")
 except ImportError:
     try:
         # Try absolute import with dots (common when using python -m)
         from src.waste_finder.core.base_llm import BaseLLM
         from src.waste_finder.core.prompt import prompts
+
         logger.debug(f"Using absolute imports with dots")
     except ImportError:
         try:
             # Try absolute import with underscores (fallback)
             from src.waste_finder.core.base_llm import BaseLLM
             from src.waste_finder.core.prompt import prompts
+
             logger.debug(f"Using absolute imports with underscores")
         except ImportError:
             # Last resort: modify sys.path and try again
-            parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+            parent_dir = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), "../..")
+            )
             if parent_dir not in sys.path:
                 sys.path.insert(0, parent_dir)
             try:
                 from src.waste_finder.core.base_llm import BaseLLM
                 from src.waste_finder.core.prompt import prompts
+
                 logger.debug(f"Using sys.path modification and absolute imports")
             except ImportError as e:
                 logger.error(f"Failed to import required modules: {e}")
                 # Provide fallback prompts
                 prompts = {
-                    "dei": "Analyze this CSV data to identify diversity, equity, and inclusion (DEI) contracts.",
-                    "ngo_fraud": "Analyze this CSV for potential fraud in NGO contracts."
+                    "waste": "Analyze this CSV data to identify wasteful contracts with vague descriptions.",
+                    "ngo_fraud": "Analyze this CSV for potential fraud in NGO contracts.",
                 }
-                raise ImportError(f"Could not import BaseLLM. Check your Python path and file structure: {e}")
+                raise ImportError(
+                    f"Could not import BaseLLM. Check your Python path and file structure: {e}"
+                )
 
 # Log available prompts
-if 'prompts' in locals():
+if "prompts" in locals():
     logger.info(f"Available prompts: {', '.join(prompts.keys())}")
+
 
 class CSVAnalyzer(BaseLLM):
     """Class to analyze contract data from CSV files using LLM APIs"""
@@ -87,7 +96,7 @@ class CSVAnalyzer(BaseLLM):
             return None
 
     def create_prompt_with_data(
-        self, csv_data, custom_prompt=None, prompt_type="ngo_fraud"
+        self, csv_data, custom_prompt=None, prompt_type="waste"
     ):
         """
         Create prompt with CSV data
@@ -95,7 +104,7 @@ class CSVAnalyzer(BaseLLM):
         Args:
             csv_data: CSV data to include in prompt
             custom_prompt: Custom prompt to use
-            prompt_type: Type of prompt to use (default: ngo_fraud)
+            prompt_type: Type of prompt to use (default: waste)
 
         Returns:
             Complete prompt with CSV data
@@ -103,10 +112,13 @@ class CSVAnalyzer(BaseLLM):
         # Use custom prompt if provided, otherwise use default prompt
         if custom_prompt:
             instruction = custom_prompt
+            logger.info("Using custom prompt")
         elif prompt_type in prompts:
             instruction = prompts[prompt_type]
+            logger.info(f"Using prompt type: {prompt_type}")
         else:
-            instruction = prompts["ngo_fraud"]  # Default to NGO Fraud prompt
+            instruction = prompts["waste"]  # Default to Waste prompt
+            logger.info("Using default prompt: waste")
 
         # Create complete prompt with CSV data
         complete_prompt = f"{instruction}\n\nHere is the CSV data:\n\n{csv_data}"
@@ -200,7 +212,7 @@ class CSVAnalyzer(BaseLLM):
         system_message=None,
         description=None,
         memory_query=None,
-        prompt_type="ngo_fraud",
+        prompt_type="waste",
     ):
         """
         Analyze CSV file using LLM
@@ -213,7 +225,7 @@ class CSVAnalyzer(BaseLLM):
             system_message: Optional system message to include
             description: Optional description to include in the system message
             memory_query: Optional query to use for retrieving memories
-            prompt_type: Type of prompt to use (default: ngo_fraud)
+            prompt_type: Type of prompt to use (default: waste)
 
         Returns:
             Analysis results as JSON object
@@ -289,7 +301,7 @@ class CSVAnalyzer(BaseLLM):
         system_message=None,
         description=None,
         memory_query=None,
-        prompt_type="ngo_fraud",
+        prompt_type="waste",
     ):
         """
         Analyze multiple CSV files
@@ -302,7 +314,7 @@ class CSVAnalyzer(BaseLLM):
             system_message: Optional system message to include
             description: Optional description to include in the system message
             memory_query: Optional query to use for retrieving memories
-            prompt_type: Type of prompt to use (default: ngo_fraud)
+            prompt_type: Type of prompt to use (default: waste)
 
         Returns:
             Dictionary of results by filename
@@ -383,9 +395,9 @@ def main():
     )
     parser.add_argument(
         "--prompt-type",
-        default="ngo_fraud",
+        default="waste",
         choices=prompts.keys(),
-        help=f"Type of prompt to use (default: ngo_fraud, available: {', '.join(prompts.keys())})",
+        help=f"Type of prompt to use (default: waste, available: {', '.join(prompts.keys())})",
     )
 
     # Common arguments for LLM configuration
