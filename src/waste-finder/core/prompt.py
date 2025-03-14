@@ -240,6 +240,7 @@ prompts = {
     "dei": dei_prompt,
     "ngo_fraud": ngo_fraud_prompt,
     "waste": waste_prompt,
+    "entity_research": entity_research_prompt,
     "x_post": x_post_prompt,
     "x_doge": x_doge_prompt,
 }
