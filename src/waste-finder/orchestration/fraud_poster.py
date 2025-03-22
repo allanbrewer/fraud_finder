@@ -58,7 +58,7 @@ class FraudPoster:
         Args:
             api_key: API key for the LLM provider
             model: Model name to use
-            provider: LLM provider (openai, anthropic, xai)
+            provider: LLM provider (openai, anthropic, xai, gemini)
             max_tokens: Maximum tokens for response
             temperature: Temperature for response generation
             user_id: User ID for memory operations
@@ -383,7 +383,7 @@ def main():
     parser.add_argument(
         "--provider",
         default="xai",
-        choices=["openai", "anthropic", "xai"],
+        choices=["openai", "anthropic", "xai", "gemini"],
         help="LLM provider to use (default: xai)",
     )
 

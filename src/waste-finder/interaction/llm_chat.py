@@ -57,6 +57,17 @@ except ImportError:
 class LLMChat(BaseLLM):
     """Class for interactive chat with LLM APIs"""
 
+    def __init__(
+        self,
+        api_key=None,
+        model=None,
+        provider="xai",
+        max_tokens=4096,
+        temperature=0.1,
+        user_id="default_user",
+    ):
+        super().__init__(api_key, model, provider, max_tokens, temperature, user_id)
+
     def chat(
         self, user_input, system_message=None, chat_history=None, prompt_type=None
     ):
@@ -187,6 +198,8 @@ class LLMChat(BaseLLM):
             )
         elif self.provider == "xai":
             response_text = self.call_xai_api("", final_system_message, chat_history)
+        elif self.provider == "gemini":
+            response_text = self.call_gemini_api("", final_system_message, chat_history)
         else:
             logger.error(f"Unknown provider: {self.provider}")
             return None, chat_history
@@ -311,7 +324,7 @@ def main():
     parser.add_argument(
         "--provider",
         default="xai",
-        choices=["openai", "anthropic", "xai"],
+        choices=["openai", "anthropic", "xai", "gemini"],
         help="LLM provider to use (default: xai)",
     )
     parser.add_argument(

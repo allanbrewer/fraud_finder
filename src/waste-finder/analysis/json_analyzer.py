@@ -82,7 +82,7 @@ class JSONAnalyzer(BaseLLM):
         Args:
             api_key: API key for the LLM provider
             model: Model name to use
-            provider: LLM provider (openai, anthropic, xai)
+            provider: LLM provider (openai, anthropic, xai, gemini)
             max_tokens: Maximum tokens for response
             temperature: Temperature for response generation
             user_id: User ID for memory operations
@@ -125,6 +125,8 @@ class JSONAnalyzer(BaseLLM):
             response_text = self.call_anthropic_api(prompt, system_message)
         elif self.provider == "xai":
             response_text = self.call_xai_api(prompt, system_message)
+        elif self.provider == "gemini":
+            response_text = self.call_gemini_api(prompt, system_message)
         else:
             logger.error(f"Unknown provider: {self.provider}")
             return None
@@ -439,7 +441,7 @@ def main():
     parser.add_argument(
         "--provider",
         default="xai",
-        choices=["openai", "anthropic", "xai"],
+        choices=["openai", "anthropic", "xai", "gemini"],
         help="LLM provider to use (default: xai)",
     )
 

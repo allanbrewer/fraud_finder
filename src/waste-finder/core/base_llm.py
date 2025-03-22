@@ -33,7 +33,7 @@ class BaseLLM:
         Args:
             api_key: API key for the LLM provider
             model: Model name to use
-            provider: LLM provider (openai, anthropic, xai)
+            provider: LLM provider (openai, anthropic, xai, gemini)
             max_tokens: Maximum tokens for response
             temperature: Temperature for response generation
             user_id: User ID for memory operations (default: default_user)
@@ -51,6 +51,8 @@ class BaseLLM:
                 self.model = "claude-3-7-sonnet-latest"
             elif self.provider == "xai":
                 self.model = "grok-2-latest"
+            elif self.provider == "gemini":
+                self.model = "gemini-2.0-flash"
             else:
                 raise ValueError(f"Unknown provider: {provider}")
         else:
@@ -64,6 +66,8 @@ class BaseLLM:
                 api_key = os.getenv("ANTHROPIC_API_KEY")
             elif self.provider == "xai":
                 api_key = os.getenv("XAI_API_KEY")
+            elif self.provider == "gemini":
+                api_key = os.getenv("GEMINI_API_KEY")
 
         if not api_key:
             raise ValueError(
@@ -73,7 +77,7 @@ class BaseLLM:
         self.api_key = api_key
 
         # Config Memory - only for supported providers
-        if self.provider in ["openai", "anthropic", "xai"]:
+        if self.provider in ["openai", "anthropic", "xai", "gemini"]:
             try:
                 mem_provider = self.provider
                 config = {
@@ -286,6 +290,56 @@ class BaseLLM:
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Error calling Xai API: {str(e)}")
+            if hasattr(e, "response") and e.response is not None:
+                logger.error(f"Response status: {e.response.status_code}")
+                logger.error(f"Response body: {e.response.text}")
+            return None
+
+    def call_gemini_api(self, complete_prompt, system_message=None, chat_history=None):
+        """
+        Call Gemini API with prompt
+
+        Args:
+            complete_prompt: Complete prompt with CSV data
+            system_message: Optional system message to include
+            chat_history: Optional list of previous messages in the chat
+
+        Returns:
+            API response as JSON
+        """
+        headers = {
+            "Content-Type": "application/json",
+        }
+
+        # Structure the content as required by the Gemini API
+        contents = []
+        if system_message:
+            contents.append({"role": "model", "parts": [{"text": system_message}]})
+        if chat_history:
+            for message in chat_history:
+                role = message.get("role")
+                content = message.get("content")
+                if role and content:
+                    contents.append({"role": role, "parts": [{"text": content}]})
+        # Add the user's prompt
+        contents.append({"role": "user", "parts": [{"text": complete_prompt}]})
+
+        payload = {"contents": contents}
+
+        try:
+            response = requests.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}",
+                headers=headers,
+                json=payload,
+            )
+            response.raise_for_status()
+
+            result = response.json()
+            # Extract the text response
+            return result["candidates"][0]["content"]["parts"][0]["text"]
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error calling Gemini API: {str(e)}")
             if hasattr(e, "response") and e.response is not None:
                 logger.error(f"Response status: {e.response.status_code}")
                 logger.error(f"Response body: {e.response.text}")

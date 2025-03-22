@@ -7,7 +7,7 @@ This Python service downloads active contracts from the USA Spending API, analyz
 ## Requirements
 - Python 3.11
 - Poetry (dependency management)
-- OpenAI API key, Anthropic API key, or XAI API key
+- OpenAI API key, Anthropic API key, XAI API key, Gemini API key
 - Twitter Developer account and Twitter App with OAuth 1.0a authentication (for Twitter integration)
 
 ## Installation
@@ -30,6 +30,7 @@ poetry install
    - `OPENAI_API_KEY`: Your OpenAI API key
    - `ANTHROPIC_API_KEY`: Your Anthropic API key
    - `XAI_API_KEY`: Your XAI API key for Grok-2 access
+   - `GEMINI_API_KEY`: Your Gemini API key
    - `TWITTER_USER_ID`: Your Twitter user ID
    - `TWITTER_USERNAME`: Your Twitter username
    - `TWITTER_CONSUMER_KEY`: Your Twitter App consumer key

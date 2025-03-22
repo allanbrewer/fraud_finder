@@ -387,6 +387,8 @@ class CSVAnalyzer(BaseLLM):
             )
         elif self.provider == "xai":
             response_text = self.call_xai_api(complete_prompt, final_system_message)
+        elif self.provider == "gemini":
+            response_text = self.call_gemini_api(complete_prompt, final_system_message)
         else:
             logger.error(f"Unknown provider: {self.provider}")
             return None
@@ -535,7 +537,7 @@ def main():
     parser.add_argument(
         "--provider",
         default="xai",
-        choices=["openai", "anthropic", "xai"],
+        choices=["openai", "anthropic", "xai", "gemini"],
         help="LLM provider to use (default: xai)",
     )
     parser.add_argument(
